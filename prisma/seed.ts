@@ -1,4 +1,10 @@
-import { db } from '../src/lib/db';
+import { PrismaClient } from '@prisma/client'
+
+// Override DATABASE_URL for seed script (system env may have SQLite path)
+process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_6gSuUdGltT2i@ep-patient-bird-am2cezf5.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require'
+process.env.DIRECT_URL = 'postgresql://neondb_owner:npg_6gSuUdGltT2i@ep-patient-bird-am2cezf5.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require'
+
+const db = new PrismaClient()
 
 async function seed() {
   console.log('🌱 Seeding database...');

@@ -27,52 +27,74 @@ export async function GET(req: NextRequest) {
     const fyStart = parseInt(sp.get('year') || '2026');
     const warningThreshold = parseFloat(sp.get('threshold') || '500000');
 
-    // Validate FY year
     if (isNaN(fyStart) || fyStart < 2000 || fyStart > 2100) {
       return NextResponse.json({ error: 'Invalid year parameter' }, { status: 400 });
     }
 
-    // Get settings with fallbacks
-    const settings = await db.setting.findMany();
+    const fyMonths = getFYMonths(fyStart);
+    const fyYearSet = new Set(fyMonths.map(m => m.year));
+    const fyYears = Array.from(fyYearSet);
+
+    // Batch 1: Core data (settings + bank accounts)
+    const [settings, bankAccounts] = await Promise.all([
+      db.setting.findMany(),
+      db.bankAccount.findMany({ where: { active: true }, select: { id: true, bankName: true, accountName: true, currentBalance: true } }),
+    ]);
+
+    // Build settings map
     const settingsMap: Record<string, string> = {};
     for (const s of settings) settingsMap[s.key] = s.value;
     const profitMarginPct = parseFloat(settingsMap.profit_margin_pct || '12') / 100;
     const operationalMarginPct = parseFloat(settingsMap.operational_margin_pct || '9') / 100;
 
-    // Get bank accounts (only active)
-    const bankAccounts = await db.bankAccount.findMany({ where: { active: true } });
+    // Current balance from bank accounts
     const currentBalance = bankAccounts.reduce((sum, a) => sum + a.currentBalance, 0);
 
-    // Get all receipts and expenses
-    const fyMonths = getFYMonths(fyStart);
-    const fyYearSet = new Set(fyMonths.map(m => m.year));
-    const allReceipts = await db.receipt.findMany();
-    const allExpenses = await db.expense.findMany();
+    // Batch 2: Receipt aggregations
+    const [receiptSums, receiptCounts, receiptProjects, allReceiptYears] = await Promise.all([
+      db.receipt.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
+      db.receipt.groupBy({ by: ['month', 'year'], _count: true, where: { year: { in: fyYears } } }),
+      db.receipt.groupBy({ by: ['clientProject'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
+      db.receipt.findMany({ select: { year: true }, distinct: ['year'] }),
+    ]);
 
-    // Filter to FY only for monthly calculations
-    const fyReceipts = allReceipts.filter(r => fyYearSet.has(r.year));
-    const fyExpenses = allExpenses.filter(e => fyYearSet.has(e.year));
+    // Batch 3: Expense aggregations
+    const [expenseSums, operationalSums, expenseCounts, expenseCategories, expenseProjects, allExpenseYears] = await Promise.all([
+      db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
+      db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: fyYears }, isOperational: true } }),
+      db.expense.groupBy({ by: ['month', 'year'], _count: true, where: { year: { in: fyYears } } }),
+      db.expense.groupBy({ by: ['category', 'isOperational'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
+      db.expense.groupBy({ by: ['project'], _sum: { amount: true }, where: { year: { in: fyYears }, project: { not: '' } } }),
+      db.expense.findMany({ select: { year: true }, distinct: ['year'] }),
+    ]);
 
-    // Calculate monthly data - THIS IS THE CORE EXCEL LOGIC
+    // Build lookup maps from grouped data
+    const receiptSumMap = new Map<string, number>();
+    for (const r of receiptSums) receiptSumMap.set(`${r.month}-${r.year}`, r._sum.amount || 0);
+
+    const expenseSumMap = new Map<string, number>();
+    for (const e of expenseSums) expenseSumMap.set(`${e.month}-${e.year}`, e._sum.amount || 0);
+
+    const opsSumMap = new Map<string, number>();
+    for (const e of operationalSums) opsSumMap.set(`${e.month}-${e.year}`, e._sum.amount || 0);
+
+    const receiptCountMap = new Map<string, number>();
+    for (const r of receiptCounts) receiptCountMap.set(`${r.month}-${r.year}`, r._count);
+
+    const expenseCountMap = new Map<string, number>();
+    for (const e of expenseCounts) expenseCountMap.set(`${e.month}-${e.year}`, e._count);
+
+    // Calculate monthly data - CORE EXCEL LOGIC
     const monthlyData = [];
     let runningBalance = currentBalance;
 
     for (const { month, year } of fyMonths) {
-      const monthReceipts = fyReceipts
-        .filter(r => r.month === month && r.year === year)
-        .reduce((sum, r) => sum + r.amount, 0);
-
-      const monthExpenses = fyExpenses
-        .filter(e => e.month === month && e.year === year)
-        .reduce((sum, e) => sum + e.amount, 0);
-
-      const monthOperational = fyExpenses
-        .filter(e => e.month === month && e.year === year && e.isOperational)
-        .reduce((sum, e) => sum + e.amount, 0);
-
-      // Count transactions for audit
-      const receiptCount = fyReceipts.filter(r => r.month === month && r.year === year).length;
-      const expenseCount = fyExpenses.filter(e => e.month === month && e.year === year).length;
+      const key = `${month}-${year}`;
+      const monthReceipts = receiptSumMap.get(key) || 0;
+      const monthExpenses = expenseSumMap.get(key) || 0;
+      const monthOperational = opsSumMap.get(key) || 0;
+      const receiptCount = receiptCountMap.get(key) || 0;
+      const expenseCount = expenseCountMap.get(key) || 0;
 
       const netCashFlow = monthReceipts - monthExpenses;
       const openingBalance = runningBalance;
@@ -98,8 +120,8 @@ export async function GET(req: NextRequest) {
     }
 
     // FY totals
-    const fyTotalReceipts = fyReceipts.reduce((sum, r) => sum + r.amount, 0);
-    const fyTotalExpenses = fyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const fyTotalReceipts = monthlyData.reduce((sum, m) => sum + m.totalReceipts, 0);
+    const fyTotalExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0);
     const netCashFlow = fyTotalReceipts - fyTotalExpenses;
     const forecastClosingBalance = currentBalance + netCashFlow;
 
@@ -115,38 +137,30 @@ export async function GET(req: NextRequest) {
     const netBalanceAfterRecovery = profitMargin + forecastClosingBalance;
 
     // Category breakdown
-    const categoryMap = new Map<string, { amount: number; isOperational: boolean }>();
-    for (const e of fyExpenses) {
-      const existing = categoryMap.get(e.category) || { amount: 0, isOperational: e.isOperational };
-      categoryMap.set(e.category, { amount: existing.amount + e.amount, isOperational: existing.isOperational });
-    }
-    const categoryBreakdown = Array.from(categoryMap.entries())
-      .map(([category, data]) => ({ category, totalAmount: data.amount, isOperational: data.isOperational }))
+    const categoryBreakdown = expenseCategories
+      .map(e => ({ category: e.category, totalAmount: e._sum.amount || 0, isOperational: e.isOperational }))
+      .filter(e => e.totalAmount > 0)
       .sort((a, b) => b.totalAmount - a.totalAmount);
 
     // Project breakdown
     const projectReceiptMap = new Map<string, number>();
-    for (const r of fyReceipts) {
-      projectReceiptMap.set(r.clientProject, (projectReceiptMap.get(r.clientProject) || 0) + r.amount);
-    }
+    for (const r of receiptProjects) projectReceiptMap.set(r.clientProject, r._sum.amount || 0);
     const projectExpenseMap = new Map<string, number>();
-    for (const e of fyExpenses) {
-      if (e.project) {
-        projectExpenseMap.set(e.project, (projectExpenseMap.get(e.project) || 0) + e.amount);
-      }
-    }
-    const allProjects = new Set([...projectReceiptMap.keys(), ...projectExpenseMap.keys()]);
-    const projectBreakdown = Array.from(allProjects).map(project => ({
+    for (const e of expenseProjects) projectExpenseMap.set(e.project, e._sum.amount || 0);
+    const allProjectKeys = new Set([...projectReceiptMap.keys(), ...projectExpenseMap.keys()]);
+    const projectBreakdown = Array.from(allProjectKeys).map(project => ({
       project,
       totalReceipts: projectReceiptMap.get(project) || 0,
       totalExpenses: projectExpenseMap.get(project) || 0,
       netFlow: (projectReceiptMap.get(project) || 0) - (projectExpenseMap.get(project) || 0),
     })).sort((a, b) => b.totalReceipts - a.totalReceipts);
 
-    // Available FY years for selector
-    const receiptYears = new Set(allReceipts.map(r => r.year));
-    const expenseYears = new Set(allExpenses.map(e => e.year));
-    const allYears = new Set([...receiptYears, ...expenseYears, fyStart]);
+    // Available FY years
+    const allYears = new Set([
+      ...allReceiptYears.map(r => r.year),
+      ...allExpenseYears.map(e => e.year),
+      fyStart,
+    ]);
     const availableFYs = Array.from(allYears).sort().map(y => String(y));
 
     return NextResponse.json({
@@ -161,7 +175,7 @@ export async function GET(req: NextRequest) {
         lowCashMonths: lowCashMonths.map(m => ({ month: m.month, year: m.year, label: m.monthLabel, closingBalance: m.closingBalance })),
         fundingGapTotal,
       },
-      bankAccounts: bankAccounts.map(a => ({ id: a.id, bankName: a.bankName, accountName: a.accountName, currentBalance: a.currentBalance })),
+      bankAccounts,
       shortfallAnalysis: {
         totalDeficit,
         additionalBusinessRequired,

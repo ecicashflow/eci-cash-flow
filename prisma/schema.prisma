@@ -1,10 +1,12 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model BankAccount {
@@ -33,26 +35,26 @@ model Receipt {
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  date        DateTime
-  month       Int
-  year        Int
-  category    String
-  description String
-  amount      Float
-  project     String   @default("")
-  status      String   @default("Expected")
-  notes       String   @default("")
-  isOperational Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  date          DateTime
+  month         Int
+  year          Int
+  category      String
+  description   String
+  amount        Float
+  project       String   @default("")
+  status        String   @default("Expected")
+  notes         String   @default("")
+  isOperational Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Category {
-  id           String  @id @default(cuid())
-  name         String
-  type         String  @default("expense")
-  active       Boolean @default(true)
+  id            String  @id @default(cuid())
+  name          String
+  type          String  @default("expense")
+  active        Boolean @default(true)
   isOperational Boolean @default(false)
 }
 
