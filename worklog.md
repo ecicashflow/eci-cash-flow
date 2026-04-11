@@ -52,3 +52,24 @@ Stage Summary:
 - Logo preview shows at multiple sizes (20x20, 8x8, 4x4)
 - Live preview shows how branding looks in sidebar and footer
 - Browser tab title updates dynamically when branding is changed
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix white screen issue when dashboard data fails to load
+
+Work Log:
+- Diagnosed white screen: when dashboard API fetch fails, `loading=false` and `dashboardData=null` caused neither loading spinner nor dashboard view to render
+- Added `fetchError` state to track API failure messages
+- Added proper error UI with AlertTriangle icon, error message, and Retry button
+- Added `ViewErrorBoundary` class component to catch runtime rendering errors in view components
+- Wrapped all view components (DashboardView, BankAccountsView, etc.) in ViewErrorBoundary
+- Made DashboardView defensive with null-safe data destructuring (all fields have fallback defaults)
+- Improved fetch error messages to include HTTP status codes
+- All lint checks pass cleanly (0 errors, 0 warnings)
+
+Stage Summary:
+- White screen issue fixed: fetch failures now show clear error message with retry button
+- Runtime render errors are caught by error boundary with retry capability
+- DashboardView is resilient to missing/malformed data
+- App no longer shows blank white screen under any error condition

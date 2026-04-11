@@ -70,9 +70,17 @@ function KpiCard({ title, value, icon: Icon, subtitle, tooltip, delta, accent }:
 }
 
 export default function DashboardView({ data }: DashboardViewProps) {
-  const { currentBalance, totalExpectedReceipts, totalExpectedExpenses,
-    netCashFlow, forecastClosingBalance, monthlyData, warnings,
-    bankAccounts, shortfallAnalysis, categoryBreakdown } = data;
+  // Defensive: ensure all expected data fields exist with defaults
+  const currentBalance = data?.currentBalance ?? 0;
+  const totalExpectedReceipts = data?.totalExpectedReceipts ?? 0;
+  const totalExpectedExpenses = data?.totalExpectedExpenses ?? 0;
+  const netCashFlow = data?.netCashFlow ?? 0;
+  const forecastClosingBalance = data?.forecastClosingBalance ?? 0;
+  const monthlyData = data?.monthlyData ?? [];
+  const warnings = data?.warnings ?? { negativeMonths: [], lowCashMonths: [], fundingGapTotal: 0 };
+  const bankAccounts = data?.bankAccounts ?? [];
+  const shortfallAnalysis = data?.shortfallAnalysis ?? { totalDeficit: 0, additionalBusinessRequired: 0, profitMargin: 0, netBalanceAfterRecovery: 0, profitMarginPct: 0, operationalMarginPct: 0 };
+  const categoryBreakdown = data?.categoryBreakdown ?? [];
 
   const receiptPct = totalExpectedReceipts > 0
     ? ((netCashFlow / totalExpectedReceipts) * 100).toFixed(1) : '0';

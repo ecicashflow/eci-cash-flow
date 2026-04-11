@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Component } from 'react';
 import Image from 'next/image';
 import {
   LayoutDashboard, Building2, ArrowDownCircle, ArrowUpCircle,
@@ -19,6 +19,40 @@ import ExpensesView from '@/components/cashflow/ExpensesView';
 import ReportsView from '@/components/cashflow/ReportsView';
 import SettingsView from '@/components/cashflow/SettingsView';
 
+// Error boundary to catch runtime errors in view components
+class ViewErrorBoundary extends Component<{ children: React.ReactNode; onRetry: () => void }, { hasError: boolean; error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error('View render error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center max-w-md">
+            <AlertTriangle className="w-10 h-10 mx-auto text-destructive mb-3" />
+            <h3 className="text-lg font-semibold mb-1">Something went wrong</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {this.state.error?.message || 'An unexpected error occurred while rendering this view.'}
+            </p>
+            <Button onClick={() => { this.setState({ hasError: false, error: null }); this.props.onRetry(); }} variant="outline" size="sm">
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 type TabId = 'dashboard' | 'bank-accounts' | 'receipts' | 'expenses' | 'reports' | 'settings';
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType; section?: string }[] = [
@@ -35,18 +69,22 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [fyYear, setFyYear] = useState('2026');
   const [appName, setAppName] = useState('ECI Cash Flow');
   const [appLogoUrl, setAppLogoUrl] = useState('/eci-logo.png');
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const res = await fetch(`/api/dashboard?year=${fyYear}`);
-      if (!res.ok) throw new Error('Failed');
-      setDashboardData(await res.json());
-    } catch (err) {
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      setDashboardData(data);
+    } catch (err: any) {
       console.error('Dashboard fetch failed:', err);
+      setFetchError(err?.message || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
@@ -176,8 +214,20 @@ export default function Home() {
                 <p className="text-muted-foreground text-sm">Loading {appName.toLowerCase()} data...</p>
               </div>
             </div>
+          ) : fetchError && !dashboardData ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center max-w-md">
+                <AlertTriangle className="w-10 h-10 mx-auto text-destructive mb-3" />
+                <h3 className="text-lg font-semibold mb-1">Failed to Load Data</h3>
+                <p className="text-sm text-muted-foreground mb-4">{fetchError}</p>
+                <Button onClick={fetchDashboard} variant="outline" size="sm">
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                  Retry
+                </Button>
+              </div>
+            </div>
           ) : (
-            <>
+            <ViewErrorBoundary onRetry={fetchDashboard}>
               {activeTab === 'dashboard' && dashboardData && (
                 <DashboardView data={dashboardData} onRefresh={fetchDashboard} />
               )}
@@ -196,7 +246,7 @@ export default function Home() {
               {activeTab === 'settings' && (
                 <SettingsView onRefresh={fetchDashboard} />
               )}
-            </>
+            </ViewErrorBoundary>
           )}
         </div>
 
