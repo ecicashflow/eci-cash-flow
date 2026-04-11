@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model BankAccount {
+  id             String   @id @default(cuid())
+  bankName       String
+  accountName    String
+  accountNumber  String   @default("")
+  currentBalance Float    @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  date          DateTime
+  month         Int
+  year          Int
+  clientProject String
+  description   String   @default("")
+  amount        Float
+  status        String   @default("Expected")
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  date        DateTime
+  month       Int
+  year        Int
+  category    String
+  description String
+  amount      Float
+  project     String   @default("")
+  status      String   @default("Expected")
+  notes       String   @default("")
+  isOperational Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Category {
+  id           String  @id @default(cuid())
+  name         String
+  type         String  @default("expense")
+  active       Boolean @default(true)
+  isOperational Boolean @default(false)
+}
+
+model ProjectClient {
+  id     String  @id @default(cuid())
+  name   String
+  code   String  @default("")
+  active Boolean @default(true)
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String @default("")
+}
