@@ -175,7 +175,7 @@ async function seed() {
     ['Pehal Pakistan', false, 'Pehal Pakistan', 100000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['PSDF - Mobilization Services', false, 'PSDF - Mobilization Services', 0, 120000, 120000, 120000, 120000, 120000, 120000, 742400, 0, 0, 0, 0],
     ['PSDF - Online Training Delivery and Mentorship', false, 'PSDF (Online Training Delivery and Mentorship)', 930920, 1055920, 1055920, 1055920, 1055920, 1055920, 1438720, 979360, 0, 0, 0, 0],
-    ['PSDF - Online Training Delivery and Mentorship - Additional 150', false, 'PSDF (Online Training Delivery and Mentorship) - Additional 150', 0, 527100, 527100, 527100, 527100, 527100, 527100, 0, 0, 0, 0, 0],
+    ['PSDF - Online Training Delivery and Mentorship - Additional 150', false, 'PSDF (Online Training Delivery and Mentorship) - Additional 150', 0, 527100, 527100, 527100, 527100, 527100, 0, 0, 0, 0, 0, 0],
     ['PSDF - SDR Lahore & Faisalabad', false, 'PSDF - SDR Lahore & Faisalabad', 0, 300000, 1440000, 2182400, 2182400, 2182400, 2182400, 280000, 280000, 280000, 280000, 3712000],
     ['PSDF - SDR Northern Belt', false, 'PSDF - SDR Northern Belt', 0, 300000, 740000, 1089450, 1089450, 1089450, 1089450, 1089450, 140000, 140000, 140000, 2096700],
     ['ST&IT', false, 'ST&IT Package-01', 938016, 350000, 2509664.85, 450000, 938016.45, 938016.45, 450000, 2509664.85, 450000, 2509664.85, 450000, 450000],

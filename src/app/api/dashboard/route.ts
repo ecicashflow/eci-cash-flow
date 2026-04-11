@@ -21,19 +21,75 @@ function getFYMonths(startYear: number) {
   ];
 }
 
+// Generate months between two dates (inclusive)
+function getMonthsInRange(startDate: Date, endDate: Date) {
+  const months: { month: number; year: number }[] = [];
+  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+  while (current <= end) {
+    months.push({ month: current.getMonth() + 1, year: current.getFullYear() });
+    current.setMonth(current.getMonth() + 1);
+  }
+  return months;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
-    const fyStart = parseInt(sp.get('year') || '2026');
     const warningThreshold = parseFloat(sp.get('threshold') || '500000');
 
-    if (isNaN(fyStart) || fyStart < 2000 || fyStart > 2100) {
-      return NextResponse.json({ error: 'Invalid year parameter' }, { status: 400 });
+    // Support both old year-based and new date-range-based filtering
+    const startDateStr = sp.get('startDate');
+    const endDateStr = sp.get('endDate');
+    const fyStart = parseInt(sp.get('year') || '0');
+
+    let rangeMonths: { month: number; year: number }[];
+    let rangeLabel: string;
+
+    if (startDateStr && endDateStr) {
+      // Date range mode
+      const startDate = new Date(startDateStr);
+      const endDate = new Date(endDateStr);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || startDate > endDate) {
+        return NextResponse.json({ error: 'Invalid date range parameters' }, { status: 400 });
+      }
+
+      rangeMonths = getMonthsInRange(startDate, endDate);
+      rangeLabel = `${MONTH_NAMES[startDate.getMonth()]} ${startDate.getFullYear()} - ${MONTH_NAMES[endDate.getMonth()]} ${endDate.getFullYear()}`;
+    } else if (fyStart >= 2000) {
+      // Legacy FY year mode
+      rangeMonths = getFYMonths(fyStart);
+      rangeLabel = `FY ${fyStart}-${fyStart + 1}`;
+    } else {
+      // Default: use financial year from settings
+      const settings = await db.setting.findMany();
+      const settingsMap: Record<string, string> = {};
+      for (const s of settings) settingsMap[s.key] = s.value;
+
+      const fyStartFromSettings = settingsMap.financial_year_start
+        ? new Date(settingsMap.financial_year_start)
+        : null;
+
+      if (fyStartFromSettings && !isNaN(fyStartFromSettings.getTime())) {
+        const startYear = fyStartFromSettings.getFullYear();
+        rangeMonths = getFYMonths(startYear);
+        rangeLabel = `FY ${startYear}-${startYear + 1}`;
+      } else {
+        // Final fallback: current FY
+        const now = new Date();
+        const currentFYStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        rangeMonths = getFYMonths(currentFYStart);
+        rangeLabel = `FY ${currentFYStart}-${currentFYStart + 1}`;
+      }
     }
 
-    const fyMonths = getFYMonths(fyStart);
-    const fyYearSet = new Set(fyMonths.map(m => m.year));
-    const fyYears = Array.from(fyYearSet);
+    const rangeYearSet = new Set(rangeMonths.map(m => m.year));
+    const rangeYears = Array.from(rangeYearSet);
+
+    // Build month key set for filtering
+    const rangeMonthKeys = new Set(rangeMonths.map(m => `${m.month}-${m.year}`));
 
     // Batch 1: Core data (settings + bank accounts)
     const [settings, bankAccounts] = await Promise.all([
@@ -52,19 +108,19 @@ export async function GET(req: NextRequest) {
 
     // Batch 2: Receipt aggregations
     const [receiptSums, receiptCounts, receiptProjects, allReceiptYears] = await Promise.all([
-      db.receipt.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
-      db.receipt.groupBy({ by: ['month', 'year'], _count: true, where: { year: { in: fyYears } } }),
-      db.receipt.groupBy({ by: ['clientProject'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
+      db.receipt.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: rangeYears } } }),
+      db.receipt.groupBy({ by: ['month', 'year'], _count: true, where: { year: { in: rangeYears } } }),
+      db.receipt.groupBy({ by: ['clientProject'], _sum: { amount: true }, where: { year: { in: rangeYears } } }),
       db.receipt.findMany({ select: { year: true }, distinct: ['year'] }),
     ]);
 
     // Batch 3: Expense aggregations
     const [expenseSums, operationalSums, expenseCounts, expenseCategories, expenseProjects, allExpenseYears] = await Promise.all([
-      db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
-      db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: fyYears }, isOperational: true } }),
-      db.expense.groupBy({ by: ['month', 'year'], _count: true, where: { year: { in: fyYears } } }),
-      db.expense.groupBy({ by: ['category', 'isOperational'], _sum: { amount: true }, where: { year: { in: fyYears } } }),
-      db.expense.groupBy({ by: ['project'], _sum: { amount: true }, where: { year: { in: fyYears }, project: { not: '' } } }),
+      db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: rangeYears } } }),
+      db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: rangeYears }, isOperational: true } }),
+      db.expense.groupBy({ by: ['month', 'year'], _count: true, where: { year: { in: rangeYears } } }),
+      db.expense.groupBy({ by: ['category', 'isOperational'], _sum: { amount: true }, where: { year: { in: rangeYears } } }),
+      db.expense.groupBy({ by: ['project'], _sum: { amount: true }, where: { year: { in: rangeYears }, project: { not: '' } } }),
       db.expense.findMany({ select: { year: true }, distinct: ['year'] }),
     ]);
 
@@ -88,7 +144,7 @@ export async function GET(req: NextRequest) {
     const monthlyData = [];
     let runningBalance = currentBalance;
 
-    for (const { month, year } of fyMonths) {
+    for (const { month, year } of rangeMonths) {
       const key = `${month}-${year}`;
       const monthReceipts = receiptSumMap.get(key) || 0;
       const monthExpenses = expenseSumMap.get(key) || 0;
@@ -119,7 +175,7 @@ export async function GET(req: NextRequest) {
       runningBalance = closingBalance;
     }
 
-    // FY totals
+    // Range totals
     const fyTotalReceipts = monthlyData.reduce((sum, m) => sum + m.totalReceipts, 0);
     const fyTotalExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpenses, 0);
     const netCashFlow = fyTotalReceipts - fyTotalExpenses;
@@ -159,7 +215,6 @@ export async function GET(req: NextRequest) {
     const allYears = new Set([
       ...allReceiptYears.map(r => r.year),
       ...allExpenseYears.map(e => e.year),
-      fyStart,
     ]);
     const availableFYs = Array.from(allYears).sort().map(y => String(y));
 
@@ -188,7 +243,8 @@ export async function GET(req: NextRequest) {
       projectBreakdown,
       settings: settingsMap,
       availableFYs,
-      fyYear: fyStart,
+      rangeLabel,
+      fyYear: rangeMonths.length > 0 ? rangeMonths[0].year : new Date().getFullYear(),
     });
   } catch (error) {
     console.error('Dashboard API error:', error);

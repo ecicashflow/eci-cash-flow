@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, Save, Tag, FolderOpen, Sliders, Palette, Upload, X, ImagePlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Tag, FolderOpen, Sliders, Palette, Upload, X, ImagePlus, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,13 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Excel import state
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importDragOver, setImportDragOver] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const reloadCategories = async () => {
     try { setCategories(await (await fetch('/api/categories')).json()); } catch { toast.error('Failed to load categories'); }
@@ -166,6 +173,68 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
     setSettingsForm(prev => ({ ...prev, app_logo_url: '' }));
   };
 
+  const handleExcelImport = async (file: File) => {
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast.error('Invalid file type. Only .xlsx and .xls files are accepted.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File too large. Maximum size: 10MB');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/import', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (data.success) {
+        setImportResult(data);
+        toast.success(`Excel imported successfully! ${data.receipts} receipts, ${data.expenses} expenses, ${data.bankAccounts} bank accounts`);
+        reloadCategories();
+        reloadProjects();
+        onRefresh();
+      } else {
+        setImportError(data.error || 'Import failed');
+        toast.error(data.error || 'Import failed');
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to import Excel file';
+      setImportError(msg);
+      toast.error(msg);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleExcelImport(file);
+    // Reset input so same file can be re-uploaded
+    e.target.value = '';
+  };
+
+  const handleImportDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setImportDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleExcelImport(file);
+  };
+
+  const handleImportDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setImportDragOver(true);
+  };
+
+  const handleImportDragLeave = () => {
+    setImportDragOver(false);
+  };
+
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const receiptCategories = categories.filter(c => c.type === 'receipt');
 
@@ -178,6 +247,7 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
       <Tabs defaultValue="branding">
         <TabsList>
           <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
+          <TabsTrigger value="import"><FileSpreadsheet className="w-4 h-4 mr-1" />Import</TabsTrigger>
           <TabsTrigger value="categories"><Tag className="w-4 h-4 mr-1" />Categories</TabsTrigger>
           <TabsTrigger value="projects"><FolderOpen className="w-4 h-4 mr-1" />Projects</TabsTrigger>
           <TabsTrigger value="settings"><Sliders className="w-4 h-4 mr-1" />Config</TabsTrigger>
@@ -363,6 +433,114 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
             <Button onClick={saveSettings} className="h-9 text-xs"><Save className="w-3.5 h-3.5 mr-1.5" /> Save Branding Changes</Button>
             <p className="text-[10px] text-muted-foreground">Changes will apply immediately after saving</p>
           </div>
+        </TabsContent>
+
+        <TabsContent value="import" className="space-y-4">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-semibold flex items-center gap-2">
+                <span className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+                  <FileSpreadsheet className="w-3 h-3" />
+                </span>
+                Import from Excel
+              </CardTitle>
+              <CardDescription className="text-[11px]">
+                Upload your ECI Cash Flow Excel file (.xlsx) to auto-populate all receipts, expenses, and bank balances.
+                This will replace all existing data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Upload area */}
+                <div
+                  onDrop={handleImportDrop}
+                  onDragOver={handleImportDragOver}
+                  onDragLeave={handleImportDragLeave}
+                  onClick={() => importFileRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                    importDragOver
+                      ? 'border-primary bg-primary/5 scale-[1.01]'
+                      : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'
+                  } ${importing ? 'pointer-events-none opacity-60' : ''}`}
+                >
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImportFileChange}
+                    className="hidden"
+                  />
+                  <div className="flex flex-col items-center gap-3">
+                    {importing ? (
+                      <>
+                        <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm font-medium text-primary">Importing data...</p>
+                        <p className="text-[11px] text-muted-foreground">Parsing Excel file and updating database</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                          <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        <p className="text-sm font-medium">Click to upload or drag & drop your Excel file</p>
+                        <p className="text-[11px] text-muted-foreground">Accepts .xlsx and .xls files (max 10MB)</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Import result */}
+                {importResult && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <p className="text-sm font-semibold text-emerald-800">Import Successful!</p>
+                    </div>
+                    <p className="text-[11px] text-emerald-700">Financial Year: {importResult.financialYear}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                      {[
+                        { label: 'Bank Accounts', value: importResult.bankAccounts },
+                        { label: 'Receipts', value: importResult.receipts },
+                        { label: 'Expenses', value: importResult.expenses },
+                        { label: 'Categories', value: importResult.categories },
+                      ].map((item, i) => (
+                        <div key={i} className="bg-white/60 rounded-lg p-2.5 ring-1 ring-emerald-100">
+                          <p className="text-[9px] text-muted-foreground uppercase font-medium">{item.label}</p>
+                          <p className="text-lg font-bold text-emerald-800">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Import error */}
+                {importError && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <p className="text-sm font-semibold text-red-800">Import Failed</p>
+                    </div>
+                    <p className="text-[11px] text-red-700">{importError}</p>
+                  </div>
+                )}
+
+                {/* Format info */}
+                <Card className="bg-muted/30 border-dashed">
+                  <CardContent className="p-4">
+                    <p className="text-[11px] font-semibold text-muted-foreground mb-2">Expected Excel Format</p>
+                    <ul className="text-[10px] text-muted-foreground space-y-1 list-disc pl-4">
+                      <li>Sheet must be named &quot;Cash Flow&quot;</li>
+                      <li>Row 1: Title, Row 2: Period (e.g., &quot;April, 2026 - March, 2027&quot;)</li>
+                      <li>Rows 6-8: Bank account details with balances</li>
+                      <li>Rows 13-36: Expected receipts by client/month (columns D-O = Apr-Mar)</li>
+                      <li>Rows 42-79: Expected expenses by category/month (columns D-O = Apr-Mar)</li>
+                      <li>Operational expenses auto-detected (Electricity, Salaries, Rent, etc.)</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="categories" className="space-y-4">

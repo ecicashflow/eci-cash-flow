@@ -179,7 +179,7 @@ export default function DashboardView({ data }: DashboardViewProps) {
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Monthly Receipts vs Expenses</CardTitle>
-            <CardDescription className="text-[11px] text-muted-foreground">FY 2026-2027 &middot; grouped by month</CardDescription>
+            <CardDescription className="text-[11px] text-muted-foreground">Receipts vs Expenses &middot; grouped by month</CardDescription>
           </CardHeader>
           <CardContent>
             <Suspense fallback={<ChartFallback />}>

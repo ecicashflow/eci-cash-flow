@@ -10,8 +10,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import DashboardView from '@/components/cashflow/DashboardView';
 import BankAccountsView from '@/components/cashflow/BankAccountsView';
 import ReceiptsView from '@/components/cashflow/ReceiptsView';
@@ -64,27 +65,44 @@ const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType; section?: 
   { id: 'settings', label: 'Settings', icon: Settings, section: 'config' },
 ];
 
+function formatDateStr(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
+function formatDisplayDate(d: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [fyYear, setFyYear] = useState('2026');
   const [appName, setAppName] = useState('ECI Cash Flow');
   const [appLogoUrl, setAppLogoUrl] = useState('/eci-logo.png');
+
+  // Date range state - default to FY 2026-27 (Apr 2026 to Mar 2027)
+  const [startDate, setStartDate] = useState<Date>(new Date(2026, 3, 1)); // Apr 1, 2026
+  const [endDate, setEndDate] = useState<Date>(new Date(2027, 2, 31)); // Mar 31, 2027
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectingStart, setSelectingStart] = useState(true);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
-      // Add 15s timeout for slow Neon cold starts
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
-      
-      const res = await fetch(`/api/dashboard?year=${fyYear}`, { signal: controller.signal });
+
+      const params = new URLSearchParams({
+        startDate: formatDateStr(startDate),
+        endDate: formatDateStr(endDate),
+      });
+      const res = await fetch(`/api/dashboard?${params.toString()}`, { signal: controller.signal });
       clearTimeout(timeoutId);
-      
+
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json();
       setDashboardData(data);
@@ -98,13 +116,13 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [fyYear]);
+  }, [startDate, endDate]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
   const deficitCount = dashboardData?.warnings?.negativeMonths?.length || 0;
   const companyName = dashboardData?.settings?.company_name || 'ECI';
-  const fyEnd = String(parseInt(fyYear) + 1);
+  const rangeLabel = dashboardData?.rangeLabel || `${formatDisplayDate(startDate)} - ${formatDisplayDate(endDate)}`;
 
   useEffect(() => {
     if (dashboardData?.settings) {
@@ -116,6 +134,42 @@ export default function Home() {
       document.title = `${tabLabel ? tabLabel + ' · ' : ''}${newAppName} - ${dashboardData.settings.company_name || 'ECI'} Office Cash Flow Management`;
     }
   }, [dashboardData?.settings, activeTab]);
+
+  // Quick date range presets
+  const applyPreset = (preset: string) => {
+    const now = new Date();
+    const currentFYStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    switch (preset) {
+      case 'current-fy':
+        setStartDate(new Date(currentFYStart, 3, 1));
+        setEndDate(new Date(currentFYStart + 1, 2, 31));
+        break;
+      case 'fy-2026':
+        setStartDate(new Date(2026, 3, 1));
+        setEndDate(new Date(2027, 2, 31));
+        break;
+      case 'fy-2025':
+        setStartDate(new Date(2025, 3, 1));
+        setEndDate(new Date(2026, 2, 31));
+        break;
+      case 'this-month':
+        setStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
+        setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        break;
+      case 'last-3-months':
+        setStartDate(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+        setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        break;
+      case 'last-6-months':
+        setStartDate(new Date(now.getFullYear(), now.getMonth() - 5, 1));
+        setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        break;
+      case 'ytd':
+        setStartDate(new Date(now.getFullYear(), 0, 1));
+        setEndDate(now);
+        break;
+    }
+  };
 
   // Render main content - NEVER leave blank
   const renderContent = () => {
@@ -149,7 +203,7 @@ export default function Home() {
       );
     }
 
-    // State 3: No data and no error and not loading (shouldn't happen, but handle it)
+    // State 3: No data and no error and not loading
     if (!dashboardData) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -202,7 +256,7 @@ export default function Home() {
           {sidebarOpen && (
             <div className="animate-fade-in min-w-0">
               <h1 className="text-sm font-bold tracking-tight truncate">{appName}</h1>
-              <p className="text-[10px] opacity-50">FY {fyYear}-{fyEnd}</p>
+              <p className="text-[10px] opacity-50">{rangeLabel}</p>
             </div>
           )}
         </div>
@@ -255,26 +309,89 @@ export default function Home() {
                 <h2 className="text-base font-semibold">{NAV_ITEMS.find(n => n.id === activeTab)?.label}</h2>
                 {dashboardData && (
                   <p className="text-[11px] text-muted-foreground">
-                    {companyName} Cash Flow &middot; {fyYear}-{fyEnd}
+                    {companyName} Cash Flow &middot; {rangeLabel}
                   </p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <CalendarRange className="w-3.5 h-3.5 text-muted-foreground" />
-                <Select value={fyYear} onValueChange={setFyYear}>
-                  <SelectTrigger className="w-[110px] h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2024">FY 2024-25</SelectItem>
-                    <SelectItem value="2025">FY 2025-26</SelectItem>
-                    <SelectItem value="2026">FY 2026-27</SelectItem>
-                    <SelectItem value="2027">FY 2027-28</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Date Range Picker */}
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+                    <CalendarRange className="w-3.5 h-3.5" />
+                    <span className="max-w-[200px] truncate">{formatDisplayDate(startDate)} — {formatDisplayDate(endDate)}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <div className="p-3 space-y-3">
+                    {/* Quick presets */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Select</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { key: 'fy-2026', label: 'FY 2026-27' },
+                          { key: 'fy-2025', label: 'FY 2025-26' },
+                          { key: 'current-fy', label: 'Current FY' },
+                          { key: 'this-month', label: 'This Month' },
+                          { key: 'last-3-months', label: '3 Months' },
+                          { key: 'last-6-months', label: '6 Months' },
+                          { key: 'ytd', label: 'Year to Date' },
+                        ].map(p => (
+                          <Button
+                            key={p.key}
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => { applyPreset(p.key); setCalendarOpen(false); }}
+                          >
+                            {p.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Custom date range */}
+                    <div className="border-t pt-3 space-y-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Custom Range</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <label className="text-[9px] text-muted-foreground">From</label>
+                          <input
+                            type="date"
+                            value={formatDateStr(startDate)}
+                            onChange={e => {
+                              const d = new Date(e.target.value);
+                              if (!isNaN(d.getTime())) setStartDate(d);
+                            }}
+                            className="w-full border rounded px-2 py-1 text-xs"
+                          />
+                        </div>
+                        <span className="text-muted-foreground text-xs mt-3">→</span>
+                        <div className="flex-1">
+                          <label className="text-[9px] text-muted-foreground">To</label>
+                          <input
+                            type="date"
+                            value={formatDateStr(endDate)}
+                            onChange={e => {
+                              const d = new Date(e.target.value);
+                              if (!isNaN(d.getTime())) setEndDate(d);
+                            }}
+                            className="w-full border rounded px-2 py-1 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full h-7 text-xs"
+                        onClick={() => { setCalendarOpen(false); }}
+                      >
+                        Apply Range
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
               {deficitCount > 0 && activeTab !== 'dashboard' && (
                 <Badge variant="destructive" className="text-[10px] gap-1 px-2">
                   <AlertTriangle className="w-3 h-3" />
@@ -293,8 +410,8 @@ export default function Home() {
           {renderContent()}
         </div>
 
-        <footer className="border-t px-5 py-2.5 text-center text-[10px] text-muted-foreground">
-          {appName} &middot; {companyName} Office Cash Flow Management &middot; FY {fyYear}-{fyEnd}
+        <footer className="border-t px-5 py-2.5 text-center text-[10px] text-muted-foreground mt-auto">
+          {appName} &middot; {companyName} Office Cash Flow Management &middot; {rangeLabel}
         </footer>
       </main>
     </div>
