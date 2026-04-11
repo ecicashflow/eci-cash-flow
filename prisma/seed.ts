@@ -234,6 +234,8 @@ async function seed() {
       { key: 'profit_margin_pct', value: '12' },
       { key: 'operational_margin_pct', value: '9' },
       { key: 'company_name', value: 'ECI' },
+      { key: 'app_name', value: 'ECI Cash Flow' },
+      { key: 'app_logo_url', value: '/eci-logo.png' },
     ],
   });
 

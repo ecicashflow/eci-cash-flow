@@ -14,12 +14,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CashFlow Pro - Office Cash Flow Management",
+  title: "ECI Cash Flow - Office Cash Flow Management",
   description: "Professional cash flow forecasting and management system for office use. Monitor bank balances, receipts, expenses, and forecast closing balances.",
   icons: {
-    icon: "/logo.svg",
+    icon: "/eci-logo.png",
   },
 };
+
+// Dynamic title is updated client-side in page.tsx based on settings
 
 export default function RootLayout({
   children,

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Save, Tag, FolderOpen, Sliders } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Pencil, Trash2, Save, Tag, FolderOpen, Sliders, Palette, Upload, X, ImagePlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,9 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
   const [projForm, setProjForm] = useState({ name: '', code: '', active: true });
 
   const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reloadCategories = async () => {
     try { setCategories(await (await fetch('/api/categories')).json()); } catch { toast.error('Failed to load categories'); }
@@ -108,17 +111,259 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
     } catch { toast.error('Failed to save settings'); }
   };
 
+  const handleLogoUpload = async (file: File) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Allowed: PNG, JPG, SVG, WebP, GIF');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File too large. Maximum size: 2MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      const res = await fetch('/api/settings/upload-logo', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setSettingsForm(prev => ({ ...prev, app_logo_url: data.logoUrl }));
+        toast.success('Logo uploaded! Click Save Branding to apply.');
+      } else {
+        toast.error(data.error || 'Upload failed');
+      }
+    } catch {
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleLogoUpload(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleLogoUpload(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragOver(false);
+  };
+
+  const removeLogo = () => {
+    setSettingsForm(prev => ({ ...prev, app_logo_url: '' }));
+  };
+
   const expenseCategories = categories.filter(c => c.type === 'expense');
   const receiptCategories = categories.filter(c => c.type === 'receipt');
 
+  const appName = settingsForm.app_name || 'ECI Cash Flow';
+  const companyName = settingsForm.company_name || 'ECI';
+  const logoUrl = settingsForm.app_logo_url || '';
+
   return (
     <div className="space-y-5">
-      <Tabs defaultValue="categories">
+      <Tabs defaultValue="branding">
         <TabsList>
+          <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
           <TabsTrigger value="categories"><Tag className="w-4 h-4 mr-1" />Categories</TabsTrigger>
           <TabsTrigger value="projects"><FolderOpen className="w-4 h-4 mr-1" />Projects</TabsTrigger>
           <TabsTrigger value="settings"><Sliders className="w-4 h-4 mr-1" />Config</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="branding" className="space-y-4">
+          {/* App Name & Company */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-semibold flex items-center gap-2">
+                <span className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+                  <Palette className="w-3 h-3" />
+                </span>
+                Application Identity
+              </CardTitle>
+              <CardDescription className="text-[11px]">Customize the application name and company identity displayed across the system</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs font-medium">Application Name</Label>
+                    <Input
+                      value={settingsForm.app_name || ''}
+                      onChange={e => setSettingsForm({ ...settingsForm, app_name: e.target.value })}
+                      className="h-9 text-xs"
+                      placeholder="ECI Cash Flow"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Displayed in sidebar, header, footer, and browser tab title</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium">Company Name</Label>
+                    <Input
+                      value={settingsForm.company_name || ''}
+                      onChange={e => setSettingsForm({ ...settingsForm, company_name: e.target.value })}
+                      className="h-9 text-xs"
+                      placeholder="ECI"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Used in reports and header subtitle</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium">Live Preview</Label>
+                  <div className="border rounded-xl p-4 bg-gradient-to-r from-muted/40 to-muted/20 space-y-3">
+                    {/* Sidebar preview */}
+                    <div className="bg-[#1e1b4b] rounded-lg p-3 flex items-center gap-2.5 shadow-sm">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--sidebar-primary)] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {logoUrl ? (
+                          <img src={logoUrl} alt="Logo" className="w-full h-full object-cover rounded-lg" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="text-[var(--sidebar-primary-foreground)] text-xs font-bold">{appName.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-white text-[11px] font-bold truncate">{appName}</p>
+                        <p className="text-white/40 text-[8px]">Office Cash Flow Management</p>
+                      </div>
+                    </div>
+                    {/* Footer preview */}
+                    <div className="border rounded-md px-3 py-1.5 bg-background">
+                      <p className="text-[9px] text-muted-foreground truncate">
+                        {appName} &middot; {companyName} Office Cash Flow Management
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Logo Upload */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-semibold flex items-center gap-2">
+                <span className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+                  <ImagePlus className="w-3 h-3" />
+                </span>
+                Application Logo
+              </CardTitle>
+              <CardDescription className="text-[11px]">Upload or link a logo image. The logo appears in the sidebar and browser tab.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-3">
+                  {/* Upload area */}
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                      dragOver
+                        ? 'border-primary bg-primary/5 scale-[1.01]'
+                        : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <div className="flex flex-col items-center gap-2">
+                      {uploadingLogo ? (
+                        <>
+                          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          <p className="text-xs text-muted-foreground">Uploading...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 text-muted-foreground/50" />
+                          <p className="text-xs font-medium">Click to upload or drag & drop</p>
+                          <p className="text-[10px] text-muted-foreground">PNG, JPG, SVG, WebP, GIF (max 2MB)</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* OR manual URL input */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+                    <div className="relative flex justify-center text-[10px]"><span className="bg-card px-2 text-muted-foreground">or enter URL manually</span></div>
+                  </div>
+                  <div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={settingsForm.app_logo_url || ''}
+                        onChange={e => setSettingsForm({ ...settingsForm, app_logo_url: e.target.value })}
+                        className="h-9 text-xs flex-1"
+                        placeholder="/eci-logo.png or https://..."
+                      />
+                      {logoUrl && (
+                        <Button variant="ghost" size="sm" onClick={removeLogo} className="h-9 px-2 text-red-500 hover:text-red-600">
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">Relative path from /public folder or full URL</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium">Logo Preview</Label>
+                  <div className="border rounded-xl p-5 bg-muted/20 flex flex-col items-center gap-4">
+                    {/* Large preview */}
+                    <div className="w-20 h-20 rounded-2xl bg-[var(--sidebar-primary)] flex items-center justify-center overflow-hidden shadow-lg">
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="Logo preview" className="w-full h-full object-cover rounded-2xl" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : (
+                        <span className="text-[var(--sidebar-primary-foreground)] text-2xl font-bold">{appName.charAt(0)}</span>
+                      )}
+                    </div>
+                    {/* Small preview (sidebar size) */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-[var(--sidebar-primary)] flex items-center justify-center overflow-hidden">
+                        {logoUrl ? (
+                          <img src={logoUrl} alt="Logo small" className="w-full h-full object-cover rounded-lg" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="text-[var(--sidebar-primary-foreground)] text-xs font-bold">{appName.charAt(0)}</span>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold">{appName}</span>
+                    </div>
+                    {/* Favicon preview */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded bg-[var(--sidebar-primary)] flex items-center justify-center overflow-hidden">
+                        {logoUrl ? (
+                          <img src={logoUrl} alt="Logo favicon" className="w-full h-full object-cover rounded" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="text-[var(--sidebar-primary-foreground)] text-[6px] font-bold">{appName.charAt(0)}</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">Browser tab icon</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Save Branding Button */}
+          <div className="flex items-center gap-3">
+            <Button onClick={saveSettings} className="h-9 text-xs"><Save className="w-3.5 h-3.5 mr-1.5" /> Save Branding Changes</Button>
+            <p className="text-[10px] text-muted-foreground">Changes will apply immediately after saving</p>
+          </div>
+        </TabsContent>
 
         <TabsContent value="categories" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -213,12 +458,11 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-3">
-                  <div><Label className="text-xs">Company Name</Label><Input value={settingsForm.company_name || ''} onChange={e => setSettingsForm({ ...settingsForm, company_name: e.target.value })} className="h-8 text-xs" /></div>
                   <div><Label className="text-xs">Financial Year Start</Label><Input type="date" value={settingsForm.financial_year_start || ''} onChange={e => setSettingsForm({ ...settingsForm, financial_year_start: e.target.value })} className="h-8 text-xs" /></div>
                   <div><Label className="text-xs">Financial Year End</Label><Input type="date" value={settingsForm.financial_year_end || ''} onChange={e => setSettingsForm({ ...settingsForm, financial_year_end: e.target.value })} className="h-8 text-xs" /></div>
                 </div>
                 <div className="space-y-3">
-                  <div><Label className="text-xs">Warning Threshold Balance (Rs.)</Label><Input type="number" value={settingsForm.warning_threshold_balance || ''} onChange={e => setSettingsForm({ ...settingsForm, warning_threshold_balance: e.target.value })} className="h-8 text-xs" /><p className="text-[10px] text-muted-foreground mt-0.5">Months below this flagged "Low Cash"</p></div>
+                  <div><Label className="text-xs">Warning Threshold Balance (Rs.)</Label><Input type="number" value={settingsForm.warning_threshold_balance || ''} onChange={e => setSettingsForm({ ...settingsForm, warning_threshold_balance: e.target.value })} className="h-8 text-xs" /><p className="text-[10px] text-muted-foreground mt-0.5">Months below this flagged &quot;Low Cash&quot;</p></div>
                   <div><Label className="text-xs">Profit Margin %</Label><Input type="number" value={settingsForm.profit_margin_pct || ''} onChange={e => setSettingsForm({ ...settingsForm, profit_margin_pct: e.target.value })} className="h-8 text-xs" /><p className="text-[10px] text-muted-foreground mt-0.5">Q86: Additional Business = Deficit / Margin%</p></div>
                   <div><Label className="text-xs">Operational Margin %</Label><Input type="number" value={settingsForm.operational_margin_pct || ''} onChange={e => setSettingsForm({ ...settingsForm, operational_margin_pct: e.target.value })} className="h-8 text-xs" /><p className="text-[10px] text-muted-foreground mt-0.5">Q87: Profit = Business × Margin%</p></div>
                 </div>

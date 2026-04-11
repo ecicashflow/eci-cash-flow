@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import {
   LayoutDashboard, Building2, ArrowDownCircle, ArrowUpCircle,
-  FileText, Settings, TrendingUp, AlertTriangle,
+  FileText, Settings, AlertTriangle,
   ChevronRight, RefreshCw, Menu, CalendarRange
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,8 @@ export default function Home() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [fyYear, setFyYear] = useState('2026');
+  const [appName, setAppName] = useState('ECI Cash Flow');
+  const [appLogoUrl, setAppLogoUrl] = useState('/eci-logo.png');
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -55,17 +58,29 @@ export default function Home() {
   const companyName = dashboardData?.settings?.company_name || 'ECI';
   const fyEnd = String(parseInt(fyYear) + 1);
 
+  useEffect(() => {
+    if (dashboardData?.settings) {
+      const newAppName = dashboardData.settings.app_name || 'ECI Cash Flow';
+      const newLogoUrl = dashboardData.settings.app_logo_url || '/eci-logo.png';
+      setAppName(newAppName);
+      setAppLogoUrl(newLogoUrl);
+      // Update browser tab title dynamically
+      const tabLabel = NAV_ITEMS.find(n => n.id === activeTab)?.label;
+      document.title = `${tabLabel ? tabLabel + ' · ' : ''}${newAppName} - ${dashboardData.settings.company_name || 'ECI'} Office Cash Flow Management`;
+    }
+  }, [dashboardData?.settings, activeTab]);
+
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-60' : 'w-14'} transition-all duration-300 bg-[var(--sidebar)] text-[var(--sidebar-foreground)] flex flex-col fixed h-full z-30`}>
         <div className="flex items-center gap-2.5 px-3 py-4 border-b border-[var(--sidebar-border)]">
-          <div className="w-8 h-8 rounded-xl bg-[var(--sidebar-primary)] flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="w-4.5 h-4.5 text-[var(--sidebar-primary-foreground)]" />
+          <div className="w-8 h-8 rounded-xl bg-[var(--sidebar-primary)] flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <Image src={appLogoUrl} alt={`${appName} Logo`} width={32} height={32} className="w-full h-full object-cover rounded-xl" unoptimized />
           </div>
           {sidebarOpen && (
             <div className="animate-fade-in min-w-0">
-              <h1 className="text-sm font-bold tracking-tight truncate">CashFlow Pro</h1>
+              <h1 className="text-sm font-bold tracking-tight truncate">{appName}</h1>
               <p className="text-[10px] opacity-50">FY {fyYear}-{fyEnd}</p>
             </div>
           )}
@@ -158,7 +173,7 @@ export default function Home() {
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <RefreshCw className="w-7 h-7 animate-spin mx-auto text-primary mb-2" />
-                <p className="text-muted-foreground text-sm">Loading cash flow data...</p>
+                <p className="text-muted-foreground text-sm">Loading {appName.toLowerCase()} data...</p>
               </div>
             </div>
           ) : (
@@ -186,7 +201,7 @@ export default function Home() {
         </div>
 
         <footer className="border-t px-5 py-2.5 text-center text-[10px] text-muted-foreground">
-          CashFlow Pro &middot; {companyName} Office Cash Flow Management &middot; FY {fyYear}-{fyEnd}
+          {appName} &middot; {companyName} Office Cash Flow Management &middot; FY {fyYear}-{fyEnd}
         </footer>
       </main>
     </div>

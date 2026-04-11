@@ -70,7 +70,7 @@ export default function ReportsView({ data }: ReportsViewProps) {
       {/* Monthly Cash Flow Report */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">ECI - Cash Flow Statement</CardTitle>
+          <CardTitle className="text-base">{data?.settings?.app_name || data?.settings?.company_name || 'ECI'} - Cash Flow Statement</CardTitle>
           <CardDescription>April 2026 - March 2027 | Monthly Forecast Report</CardDescription>
         </CardHeader>
         <CardContent>

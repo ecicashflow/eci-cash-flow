@@ -21,3 +21,34 @@ Stage Summary:
 - Multi-year support via FY selector in header, FY-scoped API queries
 - All filter bars now include "Clear filters" button
 - Calculations continue to match Excel exactly (verified: Apr 2026 closing = -8,143,232.38 vs Excel's -8,143,232.38)
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Change app name to ECI Cash Flow with logo and settings to change branding
+
+Work Log:
+- Explored entire project to find all references to "Cashflow Pro" - only found in worklog.md, not in actual code
+- App was already named "ECI Cash Flow" but needed enhanced branding controls
+- Generated professional ECI Cash Flow logo using AI image generation (teal/dark blue gradient, cash flow icon, app icon style)
+- Created `/api/settings/upload-logo` API endpoint with file upload support (validates type, size, saves to /public/uploads/)
+- Completely redesigned SettingsView branding section:
+  - Split into two cards: "Application Identity" (name + company) and "Application Logo" (upload + preview)
+  - Added drag-and-drop logo upload with visual feedback
+  - Added file picker for logo upload (PNG, JPG, SVG, WebP, GIF up to 2MB)
+  - Added manual URL input as alternative to upload
+  - Added multi-size logo preview (large, sidebar, favicon sizes)
+  - Added live preview of sidebar and footer with current branding
+  - Added remove logo button
+- Updated page.tsx to dynamically update browser tab title based on settings
+- Added `app_name` and `app_logo_url` to seed.ts settings data
+- Updated next.config.ts with remotePatterns for external logo URLs
+- All lint checks pass cleanly (0 errors, 0 warnings)
+
+Stage Summary:
+- App name is "ECI Cash Flow" throughout (sidebar, header, footer, browser tab, reports)
+- Professional AI-generated ECI logo at /public/eci-logo.png
+- Settings → Branding tab now has full logo upload (drag-drop + file picker + URL)
+- Logo preview shows at multiple sizes (20x20, 8x8, 4x4)
+- Live preview shows how branding looks in sidebar and footer
+- Browser tab title updates dynamically when branding is changed
