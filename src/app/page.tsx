@@ -78,13 +78,23 @@ export default function Home() {
     setLoading(true);
     setFetchError(null);
     try {
-      const res = await fetch(`/api/dashboard?year=${fyYear}`);
+      // Add 15s timeout for slow Neon cold starts
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      const res = await fetch(`/api/dashboard?year=${fyYear}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json();
       setDashboardData(data);
     } catch (err: any) {
       console.error('Dashboard fetch failed:', err);
-      setFetchError(err?.message || 'Failed to load dashboard data');
+      if (err.name === 'AbortError') {
+        setFetchError('Request timed out. The server may be waking up — please try again.');
+      } else {
+        setFetchError(err?.message || 'Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
     }
@@ -102,11 +112,84 @@ export default function Home() {
       const newLogoUrl = dashboardData.settings.app_logo_url || '/eci-logo.png';
       setAppName(newAppName);
       setAppLogoUrl(newLogoUrl);
-      // Update browser tab title dynamically
       const tabLabel = NAV_ITEMS.find(n => n.id === activeTab)?.label;
       document.title = `${tabLabel ? tabLabel + ' · ' : ''}${newAppName} - ${dashboardData.settings.company_name || 'ECI'} Office Cash Flow Management`;
     }
   }, [dashboardData?.settings, activeTab]);
+
+  // Render main content - NEVER leave blank
+  const renderContent = () => {
+    // State 1: Initial loading (no previous data)
+    if (loading && !dashboardData && !fetchError) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <RefreshCw className="w-7 h-7 animate-spin mx-auto text-primary mb-2" />
+            <p className="text-muted-foreground text-sm">Loading {appName.toLowerCase()} data...</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Connecting to database...</p>
+          </div>
+        </div>
+      );
+    }
+
+    // State 2: Fetch error with no data
+    if (fetchError && !dashboardData) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center max-w-md">
+            <AlertTriangle className="w-10 h-10 mx-auto text-destructive mb-3" />
+            <h3 className="text-lg font-semibold mb-1">Failed to Load Data</h3>
+            <p className="text-sm text-muted-foreground mb-4">{fetchError}</p>
+            <Button onClick={fetchDashboard} variant="outline" size="sm">
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // State 3: No data and no error and not loading (shouldn't happen, but handle it)
+    if (!dashboardData) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center max-w-md">
+            <AlertTriangle className="w-10 h-10 mx-auto text-amber-500 mb-3" />
+            <h3 className="text-lg font-semibold mb-1">No Data Available</h3>
+            <p className="text-sm text-muted-foreground mb-4">Dashboard data could not be loaded. Click retry to try again.</p>
+            <Button onClick={fetchDashboard} variant="outline" size="sm">
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    // State 4: Data available - render views
+    return (
+      <ViewErrorBoundary onRetry={fetchDashboard}>
+        {activeTab === 'dashboard' && (
+          <DashboardView data={dashboardData} onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'bank-accounts' && (
+          <BankAccountsView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'receipts' && (
+          <ReceiptsView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'expenses' && (
+          <ExpensesView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'reports' && (
+          <ReportsView data={dashboardData} />
+        )}
+        {activeTab === 'settings' && (
+          <SettingsView onRefresh={fetchDashboard} />
+        )}
+      </ViewErrorBoundary>
+    );
+  };
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -207,47 +290,7 @@ export default function Home() {
         </header>
 
         <div className="flex-1 p-5">
-          {loading && !dashboardData ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <RefreshCw className="w-7 h-7 animate-spin mx-auto text-primary mb-2" />
-                <p className="text-muted-foreground text-sm">Loading {appName.toLowerCase()} data...</p>
-              </div>
-            </div>
-          ) : fetchError && !dashboardData ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center max-w-md">
-                <AlertTriangle className="w-10 h-10 mx-auto text-destructive mb-3" />
-                <h3 className="text-lg font-semibold mb-1">Failed to Load Data</h3>
-                <p className="text-sm text-muted-foreground mb-4">{fetchError}</p>
-                <Button onClick={fetchDashboard} variant="outline" size="sm">
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                  Retry
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <ViewErrorBoundary onRetry={fetchDashboard}>
-              {activeTab === 'dashboard' && dashboardData && (
-                <DashboardView data={dashboardData} onRefresh={fetchDashboard} />
-              )}
-              {activeTab === 'bank-accounts' && (
-                <BankAccountsView onRefresh={fetchDashboard} />
-              )}
-              {activeTab === 'receipts' && (
-                <ReceiptsView onRefresh={fetchDashboard} />
-              )}
-              {activeTab === 'expenses' && (
-                <ExpensesView onRefresh={fetchDashboard} />
-              )}
-              {activeTab === 'reports' && dashboardData && (
-                <ReportsView data={dashboardData} />
-              )}
-              {activeTab === 'settings' && (
-                <SettingsView onRefresh={fetchDashboard} />
-              )}
-            </ViewErrorBoundary>
-          )}
+          {renderContent()}
         </div>
 
         <footer className="border-t px-5 py-2.5 text-center text-[10px] text-muted-foreground">

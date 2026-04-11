@@ -1,19 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import {
   TrendingUp, TrendingDown, AlertTriangle, Building2, Wallet,
-  ArrowDownCircle, ArrowUpCircle, ShieldAlert, ChevronRight, Info
+  ArrowDownCircle, ArrowUpCircle, ShieldAlert, Info
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
-  LineChart, Line, ResponsiveContainer, ReferenceLine, Area, AreaChart,
-  ComposedChart,
-} from 'recharts';
 import { formatPKRFull, formatCompact, formatPKR, formatLakhs, MONTH_NAMES } from '@/lib/format';
+
+// Lazy-load recharts to prevent SSR/hydration crashes
+const LazyRecharts = lazy(() => import('@/components/cashflow/RechartsCharts'));
 
 interface DashboardViewProps {
   data: any;
@@ -69,6 +67,17 @@ function KpiCard({ title, value, icon: Icon, subtitle, tooltip, delta, accent }:
   );
 }
 
+function ChartFallback() {
+  return (
+    <div className="h-[320px] flex items-center justify-center bg-muted/20 rounded-lg">
+      <div className="text-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground">Loading chart...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardView({ data }: DashboardViewProps) {
   // Defensive: ensure all expected data fields exist with defaults
   const currentBalance = data?.currentBalance ?? 0;
@@ -117,13 +126,6 @@ export default function DashboardView({ data }: DashboardViewProps) {
     Net: Math.round(m.netCashFlow),
   }));
 
-  const balanceChartData = monthlyData.map((m: any) => ({
-    name: m.monthLabel,
-    short: MONTH_NAMES[m.month - 1],
-    'Forecast Balance': Math.round(m.closingBalance),
-    Opening: Math.round(m.openingBalance),
-  }));
-
   const areaChartData = monthlyData.map((m: any) => ({
     name: m.monthLabel,
     short: MONTH_NAMES[m.month - 1],
@@ -144,7 +146,7 @@ export default function DashboardView({ data }: DashboardViewProps) {
         ))}
       </div>
 
-      {/* Alert Strip - compact warning */}
+      {/* Alert Strip */}
       {warnings.negativeMonths.length > 0 && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-red-50 to-orange-50 ring-1 ring-red-200 animate-fade-in">
           <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0" />
@@ -172,60 +174,39 @@ export default function DashboardView({ data }: DashboardViewProps) {
         </div>
       )}
 
-      {/* Charts - side by side */}
+      {/* Charts - lazy loaded */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Receipts vs Expenses */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Monthly Receipts vs Expenses</CardTitle>
             <CardDescription className="text-[11px] text-muted-foreground">FY 2026-2027 &middot; grouped by month</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="short" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompact} axisLine={false} tickLine={false} width={55} />
-                  <ReTooltip formatter={currencyFormatter} contentStyle={tooltipStyle} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-                  <ReferenceLine y={0} stroke="var(--muted-foreground)" />
-                  <Bar dataKey="Receipts" fill="#16a34a" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                  <Bar dataKey="Expenses" fill="#ef4444" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <Suspense fallback={<ChartFallback />}>
+              <LazyRecharts
+                type="bar"
+                data={barChartData}
+                tooltipStyle={tooltipStyle}
+                currencyFormatter={currencyFormatter}
+              />
+            </Suspense>
           </CardContent>
         </Card>
 
-        {/* Forecast Balance Trend */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Forecast Balance Trend</CardTitle>
             <CardDescription className="text-[11px] text-muted-foreground">Running balance with carry-forward &middot; zero-line = break-even</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={areaChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="short" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCompact} axisLine={false} tickLine={false} width={55} />
-                  <ReTooltip formatter={currencyFormatter} contentStyle={tooltipStyle} />
-                  <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5}
-                    label={{ value: 'Break-even', position: 'right', fill: '#ef4444', fontSize: 9 }} />
-                  <Area type="monotone" dataKey="Balance" stroke="#3b82f6" strokeWidth={2.5}
-                    fill="url(#balGrad)" dot={{ r: 3, fill: '#3b82f6', strokeWidth: 0 }}
-                    activeDot={{ r: 5, stroke: '#3b82f6', strokeWidth: 2, fill: '#fff' }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <Suspense fallback={<ChartFallback />}>
+              <LazyRecharts
+                type="area"
+                data={areaChartData}
+                tooltipStyle={tooltipStyle}
+                currencyFormatter={currencyFormatter}
+              />
+            </Suspense>
           </CardContent>
         </Card>
       </div>
@@ -295,7 +276,6 @@ export default function DashboardView({ data }: DashboardViewProps) {
                 </tr>
               </thead>
               <tbody>
-                {/* Opening balance row */}
                 <tr className="bg-muted/30 border-b">
                   <td colSpan={9} className="p-2 text-[10px] font-medium">
                     Current Bank Balance (Q4): <span className={currentBalance >= 0 ? 'text-emerald-700 font-semibold' : 'text-red-700 font-semibold'}>{formatPKRFull(currentBalance)}</span>
@@ -350,7 +330,6 @@ export default function DashboardView({ data }: DashboardViewProps) {
 
       {/* Bank Accounts + Top Categories side by side */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Bank Accounts */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Bank Accounts</CardTitle>
@@ -383,7 +362,6 @@ export default function DashboardView({ data }: DashboardViewProps) {
           </CardContent>
         </Card>
 
-        {/* Top Categories */}
         <Card className="shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Expense Breakdown</CardTitle>
@@ -414,7 +392,7 @@ export default function DashboardView({ data }: DashboardViewProps) {
         </Card>
       </div>
 
-      {/* Excel Formula Reference - collapsible info */}
+      {/* Excel Formula Reference */}
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Formula Reference: Excel → System</CardTitle>
