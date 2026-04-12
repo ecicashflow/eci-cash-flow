@@ -126,7 +126,7 @@ export default function ExpensesView({ onRefresh }: { onRefresh: () => void }) {
     } catch { toast.error('Failed to delete'); }
   };
 
-  const statusColor = (s: string) => s === 'Paid' ? 'bg-emerald-100 text-emerald-800' : s === 'Approved' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800';
+  const statusColor = (s: string) => s === 'Paid' ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80' : s === 'Approved' ? 'bg-sky-50 text-sky-800 border-sky-200/80' : 'bg-amber-50 text-amber-800 border-amber-200/80';
 
   const uniqueMonths = useMemo(() => {
     const set = new Set<string>();
@@ -138,49 +138,49 @@ export default function ExpensesView({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="space-y-5">
-      <Card className="shadow-sm">
-        <CardContent className="p-4">
+      <Card className="shadow-md border-slate-200/60 bg-gradient-to-br from-red-50/90 via-white to-orange-50/40 ring-1 ring-red-200/70">
+        <CardContent className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex gap-6">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total Expenses</p>
-                <p className="text-2xl font-bold text-red-700">{formatPKRFull(totalAmount)}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Total Expenses</p>
+                <p className="text-2xl font-extrabold tracking-tight text-red-700 mt-0.5">{formatPKRFull(totalAmount)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground">Operational</p>
-                <p className="text-base font-semibold text-orange-600">{formatPKRFull(totalOps)}</p>
+                <p className="text-[10px] text-slate-400 font-medium">Operational</p>
+                <p className="text-base font-bold text-orange-600 tabular-nums">{formatPKRFull(totalOps)}</p>
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground">Project-Based</p>
-                <p className="text-base font-semibold text-red-600">{formatPKRFull(totalProj)}</p>
+                <p className="text-[10px] text-slate-400 font-medium">Project-Based</p>
+                <p className="text-base font-bold text-red-600 tabular-nums">{formatPKRFull(totalProj)}</p>
               </div>
             </div>
-            <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-1.5" /> Add Expense</Button>
+            <Button onClick={openCreate} size="sm" className="gap-1.5 rounded-lg shadow-sm font-medium"><Plus className="w-4 h-4" /> Add Expense</Button>
           </div>
         </CardContent>
       </Card>
 
       <div className="flex flex-wrap gap-2.5 items-center">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-xs">
-          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-          <Input placeholder="Search expenses..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 text-xs" />
+          <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+          <Input placeholder="Search expenses..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-8 text-xs rounded-lg border-border/70" />
         </div>
         <Select value={filterMonth} onValueChange={setFilterMonth}>
-          <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="All Months" /></SelectTrigger>
+          <SelectTrigger className="w-36 h-8 text-xs rounded-lg border-border/70"><SelectValue placeholder="All Months" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Months</SelectItem>
             {uniqueMonths.map(mk => { const { month: m, year: y } = parseMonthKey(mk); return <SelectItem key={mk} value={mk}>{MONTH_NAMES[m - 1]} {y}</SelectItem>; })}
           </SelectContent>
         </Select>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="All Categories" /></SelectTrigger>
+          <SelectTrigger className="w-44 h-8 text-xs rounded-lg border-border/70"><SelectValue placeholder="All Categories" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
             {categories.map(c => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-border/70"><SelectValue placeholder="All Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="Expected">Expected</SelectItem>
@@ -189,55 +189,55 @@ export default function ExpensesView({ onRefresh }: { onRefresh: () => void }) {
           </SelectContent>
         </Select>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue placeholder="All Types" /></SelectTrigger>
+          <SelectTrigger className="w-28 h-8 text-xs rounded-lg border-border/70"><SelectValue placeholder="All Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="operational">Operational</SelectItem>
             <SelectItem value="project">Project</SelectItem>
           </SelectContent>
         </Select>
-        {hasFilters && <Button variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => { setFilterMonth('all'); setFilterStatus('all'); setFilterCategory('all'); setFilterType('all'); setSearchTerm(''); }}>Clear</Button>}
+        {hasFilters && <Button variant="ghost" size="sm" className="h-7 text-[11px] rounded-lg" onClick={() => { setFilterMonth('all'); setFilterStatus('all'); setFilterCategory('all'); setFilterType('all'); setSearchTerm(''); }}>Clear</Button>}
       </div>
 
-      <Card className="shadow-sm">
+      <Card className="shadow-md border-slate-200/60">
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-y-auto custom-scrollbar">
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="text-[11px]">Date</TableHead>
-                  <TableHead className="text-[11px]">Month</TableHead>
-                  <TableHead className="text-[11px]">Category</TableHead>
-                  <TableHead className="text-[11px]">Description</TableHead>
-                  <TableHead className="text-right text-[11px]">Amount</TableHead>
-                  <TableHead className="text-[11px]">Project</TableHead>
-                  <TableHead className="text-center text-[11px]">Type</TableHead>
-                  <TableHead className="text-center text-[11px]">Status</TableHead>
-                  <TableHead className="text-right text-[11px] w-20">Actions</TableHead>
+                <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200/60">
+                  <TableHead className="text-[11px] font-bold text-slate-600 px-5 py-3">Date</TableHead>
+                  <TableHead className="text-[11px] font-bold text-slate-600 py-3">Month</TableHead>
+                  <TableHead className="text-[11px] font-bold text-slate-600 py-3">Category</TableHead>
+                  <TableHead className="text-[11px] font-bold text-slate-600 py-3">Description</TableHead>
+                  <TableHead className="text-right text-[11px] font-bold text-slate-600 py-3">Amount</TableHead>
+                  <TableHead className="text-[11px] font-bold text-slate-600 py-3">Project</TableHead>
+                  <TableHead className="text-center text-[11px] font-bold text-slate-600 py-3">Type</TableHead>
+                  <TableHead className="text-center text-[11px] font-bold text-slate-600 py-3">Status</TableHead>
+                  <TableHead className="text-right text-[11px] font-bold text-slate-600 px-5 py-3 w-20">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-xs text-muted-foreground py-8">No expenses found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-xs text-slate-400 py-12 font-medium">No expenses found</TableCell></TableRow>
                 ) : filtered.map(e => (
-                  <TableRow key={e.id} className={`transition-colors ${e.isOperational ? 'bg-orange-50/30' : 'hover:bg-muted/20'}`}>
-                    <TableCell className="text-[11px] font-mono">{new Date(e.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-[11px]">{MONTH_NAMES[e.month - 1]} {e.year}</TableCell>
-                    <TableCell className="text-[11px] font-medium max-w-[160px] truncate" title={e.category}>{e.category}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground max-w-[120px] truncate">{e.description}</TableCell>
-                    <TableCell className="text-right text-[11px] font-semibold font-mono text-red-700">{formatPKR(e.amount)}</TableCell>
-                    <TableCell className="text-[11px] text-muted-foreground max-w-[100px] truncate">{e.project || '—'}</TableCell>
+                  <TableRow key={e.id} className={`border-b border-slate-100/80 transition-colors duration-150 ${e.isOperational ? 'bg-orange-50/20' : 'hover:bg-slate-50/60'}`}>
+                    <TableCell className="text-[11px] font-mono text-slate-600 px-5">{new Date(e.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-[11px] text-slate-700">{MONTH_NAMES[e.month - 1]} {e.year}</TableCell>
+                    <TableCell className="text-[11px] font-semibold text-slate-800 max-w-[160px] truncate" title={e.category}>{e.category}</TableCell>
+                    <TableCell className="text-[11px] text-slate-400 max-w-[120px] truncate">{e.description}</TableCell>
+                    <TableCell className="text-right text-[11px] font-bold font-mono tabular-nums text-red-700">{formatPKR(e.amount)}</TableCell>
+                    <TableCell className="text-[11px] text-slate-400 max-w-[100px] truncate">{e.project || '—'}</TableCell>
                     <TableCell className="text-center">
-                      <Badge className={`text-[9px] ${e.isOperational ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'}`}>
+                      <Badge className={`text-[9px] shadow-sm font-semibold px-2.5 py-0.5 rounded-md ${e.isOperational ? 'bg-orange-50 text-orange-800 border-orange-200/80' : 'bg-slate-50 text-slate-700 border-slate-200/80'}`}>
                         {e.isOperational ? 'Ops' : 'Project'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge className={`text-[9px] ${statusColor(e.status)}`}>{e.status}</Badge>
+                      <Badge className={`text-[9px] shadow-sm font-semibold px-2.5 py-0.5 rounded-md ${statusColor(e.status)}`}>{e.status}</Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(e)} className="h-7 w-7 p-0"><Pencil className="w-3 h-3" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(e.id)} className="h-7 w-7 p-0 text-red-500 hover:text-red-700"><Trash2 className="w-3 h-3" /></Button>
+                    <TableCell className="text-right px-5">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(e)} className="h-7 w-7 p-0 rounded-lg hover:bg-indigo-50"><Pencil className="w-3 h-3 text-slate-500" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(e.id)} className="h-7 w-7 p-0 rounded-lg hover:bg-red-50 text-red-500 hover:text-red-700"><Trash2 className="w-3 h-3" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -248,66 +248,66 @@ export default function ExpensesView({ onRefresh }: { onRefresh: () => void }) {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="text-sm">{editing ? 'Edit Expense' : 'New Expense'}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md rounded-xl">
+          <DialogHeader><DialogTitle className="text-sm font-bold tracking-tight">{editing ? 'Edit Expense' : 'New Expense'}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-3">
             <div>
-              <Label className="text-xs">Date *</Label>
-              <Input type="date" value={form.date} onChange={e => handleDateChange(e.target.value)} className={`h-8 text-xs ${errors.date ? 'ring-2 ring-red-400' : ''}`} />
+              <Label className="text-xs font-semibold text-slate-700">Date *</Label>
+              <Input type="date" value={form.date} onChange={e => handleDateChange(e.target.value)} className={`h-8 text-xs rounded-lg mt-1 ${errors.date ? 'ring-2 ring-red-400' : ''}`} />
               {errors.date && <p className="text-[10px] text-red-600 mt-0.5">{errors.date}</p>}
             </div>
-            <p className="text-[10px] text-muted-foreground -mt-1">Month/year auto-filled from date.</p>
+            <p className="text-[10px] text-slate-400 -mt-1">Month/year auto-filled from date.</p>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-xs">Month</Label>
+              <div><Label className="text-xs font-semibold text-slate-700">Month</Label>
                 <Select value={String(form.month)} onValueChange={v => setForm({ ...form, month: parseInt(v) })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs rounded-lg mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>{MONTH_FULL_NAMES.map((n, i) => <SelectItem key={i} value={String(i + 1)}>{n}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label className="text-xs">Year</Label><Input type="number" value={form.year} onChange={e => setForm({ ...form, year: parseInt(e.target.value) || 2026 })} className="h-8 text-xs" /></div>
+              <div><Label className="text-xs font-semibold text-slate-700">Year</Label><Input type="number" value={form.year} onChange={e => setForm({ ...form, year: parseInt(e.target.value) || 2026 })} className="h-8 text-xs rounded-lg mt-1" /></div>
             </div>
             <div>
-              <Label className="text-xs">Category *</Label>
+              <Label className="text-xs font-semibold text-slate-700">Category *</Label>
               <Select value={form.category} onValueChange={v => {
                 const cat = categories.find(c => c.name === v);
                 setForm({ ...form, category: v, isOperational: cat?.isOperational || false });
                 if (errors.category) setErrors({ ...errors, category: '' });
               }}>
-                <SelectTrigger className={`h-8 text-xs ${errors.category ? 'ring-2 ring-red-400' : ''}`}><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectTrigger className={`h-8 text-xs rounded-lg mt-1 ${errors.category ? 'ring-2 ring-red-400' : ''}`}><SelectValue placeholder="Select category" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__custom__">— Type custom below —</SelectItem>
                   {categories.map(c => <SelectItem key={c.name} value={c.name}>{c.name}{c.isOperational ? ' ⚙' : ''}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Input className="mt-1 h-7 text-[11px]" placeholder="Or type custom category" value={form.category} onChange={e => { setForm({ ...form, category: e.target.value }); if (errors.category) setErrors({ ...errors, category: '' }); }} />
+              <Input className="mt-1 h-7 text-[11px] rounded-lg" placeholder="Or type custom category" value={form.category} onChange={e => { setForm({ ...form, category: e.target.value }); if (errors.category) setErrors({ ...errors, category: '' }); }} />
               {errors.category && <p className="text-[10px] text-red-600 mt-0.5">{errors.category}</p>}
             </div>
             <div>
-              <Label className="text-xs">Description *</Label>
-              <Input value={form.description} onChange={e => { setForm({ ...form, description: e.target.value }); if (errors.description) setErrors({ ...errors, description: '' }); }} className={`h-8 text-xs ${errors.description ? 'ring-2 ring-red-400' : ''}`} />
+              <Label className="text-xs font-semibold text-slate-700">Description *</Label>
+              <Input value={form.description} onChange={e => { setForm({ ...form, description: e.target.value }); if (errors.description) setErrors({ ...errors, description: '' }); }} className={`h-8 text-xs rounded-lg mt-1 ${errors.description ? 'ring-2 ring-red-400' : ''}`} />
               {errors.description && <p className="text-[10px] text-red-600 mt-0.5">{errors.description}</p>}
             </div>
             <div>
-              <Label className="text-xs">Amount (Rs.) *</Label>
-              <Input type="number" value={form.amount || ''} onChange={e => { setForm({ ...form, amount: parseFloat(e.target.value) || 0 }); if (errors.amount) setErrors({ ...errors, amount: '' }); }} className={`h-8 text-xs font-mono ${errors.amount ? 'ring-2 ring-red-400' : ''}`} placeholder="0" />
+              <Label className="text-xs font-semibold text-slate-700">Amount (Rs.) *</Label>
+              <Input type="number" value={form.amount || ''} onChange={e => { setForm({ ...form, amount: parseFloat(e.target.value) || 0 }); if (errors.amount) setErrors({ ...errors, amount: '' }); }} className={`h-8 text-xs font-mono rounded-lg mt-1 ${errors.amount ? 'ring-2 ring-red-400' : ''}`} placeholder="0" />
               {errors.amount && <p className="text-[10px] text-red-600 mt-0.5">{errors.amount}</p>}
             </div>
             <div>
-              <Label className="text-xs">Project (optional)</Label>
+              <Label className="text-xs font-semibold text-slate-700">Project (optional)</Label>
               <Select value={form.project || '__none__'} onValueChange={v => setForm({ ...form, project: v === '__none__' ? '' : v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select project" /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs rounded-lg mt-1"><SelectValue placeholder="Select project" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>
                   {projects.map(p => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Input className="mt-1 h-7 text-[11px]" placeholder="Or type custom project" value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} />
+              <Input className="mt-1 h-7 text-[11px] rounded-lg" placeholder="Or type custom project" value={form.project} onChange={e => setForm({ ...form, project: e.target.value })} />
             </div>
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <Label className="text-xs">Status</Label>
+                <Label className="text-xs font-semibold text-slate-700">Status</Label>
                 <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs rounded-lg mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Expected">Expected</SelectItem>
                     <SelectItem value="Approved">Approved</SelectItem>
@@ -317,14 +317,14 @@ export default function ExpensesView({ onRefresh }: { onRefresh: () => void }) {
               </div>
               <div className="flex items-center gap-2 pt-4">
                 <Checkbox checked={form.isOperational} onCheckedChange={v => setForm({ ...form, isOperational: !!v })} />
-                <Label className="text-xs">Operational</Label>
+                <Label className="text-xs font-medium text-slate-600">Operational</Label>
               </div>
             </div>
-            <div><Label className="text-xs">Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="h-8 text-xs" placeholder="Optional" /></div>
+            <div><Label className="text-xs font-semibold text-slate-700">Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="h-8 text-xs rounded-lg mt-1" placeholder="Optional" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-8 text-xs">Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="h-8 text-xs">{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-8 text-xs rounded-lg">Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="h-8 text-xs rounded-lg font-medium shadow-sm">{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -252,48 +252,48 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
   return (
     <div className="space-y-5">
       <Tabs defaultValue="branding">
-        <TabsList>
-          <TabsTrigger value="branding"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
-          <TabsTrigger value="import"><FileSpreadsheet className="w-4 h-4 mr-1" />Import</TabsTrigger>
-          <TabsTrigger value="categories"><Tag className="w-4 h-4 mr-1" />Categories</TabsTrigger>
-          <TabsTrigger value="projects"><FolderOpen className="w-4 h-4 mr-1" />Projects</TabsTrigger>
-          <TabsTrigger value="settings"><Sliders className="w-4 h-4 mr-1" />Config</TabsTrigger>
+        <TabsList className="bg-slate-100/60 rounded-lg">
+          <TabsTrigger value="branding" className="rounded-md text-xs font-medium data-[state=active]:shadow-sm"><Palette className="w-4 h-4 mr-1" />Branding</TabsTrigger>
+          <TabsTrigger value="import" className="rounded-md text-xs font-medium data-[state=active]:shadow-sm"><FileSpreadsheet className="w-4 h-4 mr-1" />Import</TabsTrigger>
+          <TabsTrigger value="categories" className="rounded-md text-xs font-medium data-[state=active]:shadow-sm"><Tag className="w-4 h-4 mr-1" />Categories</TabsTrigger>
+          <TabsTrigger value="projects" className="rounded-md text-xs font-medium data-[state=active]:shadow-sm"><FolderOpen className="w-4 h-4 mr-1" />Projects</TabsTrigger>
+          <TabsTrigger value="settings" className="rounded-md text-xs font-medium data-[state=active]:shadow-sm"><Sliders className="w-4 h-4 mr-1" />Config</TabsTrigger>
         </TabsList>
 
         <TabsContent value="branding" className="space-y-4">
           {/* App Name & Company */}
-          <Card className="shadow-sm">
+          <Card className="shadow-md border-slate-200/60">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                <span className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+              <CardTitle className="text-xs font-bold flex items-center gap-2 tracking-tight text-slate-800">
+                <span className="w-5 h-5 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm">
                   <Palette className="w-3 h-3" />
                 </span>
                 Application Identity
               </CardTitle>
-              <CardDescription className="text-[11px]">Customize the application name and company identity displayed across the system</CardDescription>
+              <CardDescription className="text-[11px] text-slate-400 font-medium">Customize the application name and company identity displayed across the system</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-3">
                   <div>
-                    <Label className="text-xs font-medium">Application Name</Label>
+                    <Label className="text-xs font-semibold text-slate-700">Application Name</Label>
                     <Input
                       value={settingsForm.app_name || ''}
                       onChange={e => setSettingsForm({ ...settingsForm, app_name: e.target.value })}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs rounded-lg mt-1"
                       placeholder="ECI Cash Flow"
                     />
-                    <p className="text-[10px] text-muted-foreground mt-1">Displayed in sidebar, header, footer, and browser tab title</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Displayed in sidebar, header, footer, and browser tab title</p>
                   </div>
                   <div>
-                    <Label className="text-xs font-medium">Company Name</Label>
+                    <Label className="text-xs font-semibold text-slate-700">Company Name</Label>
                     <Input
                       value={settingsForm.company_name || ''}
                       onChange={e => setSettingsForm({ ...settingsForm, company_name: e.target.value })}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs rounded-lg mt-1"
                       placeholder="ECI"
                     />
-                    <p className="text-[10px] text-muted-foreground mt-1">Used in reports and header subtitle</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Used in reports and header subtitle</p>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -326,15 +326,15 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
           </Card>
 
           {/* Logo Upload */}
-          <Card className="shadow-sm">
+          <Card className="shadow-md border-slate-200/60">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                <span className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+              <CardTitle className="text-xs font-bold flex items-center gap-2 tracking-tight text-slate-800">
+                <span className="w-5 h-5 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm">
                   <ImagePlus className="w-3 h-3" />
                 </span>
                 Application Logo
               </CardTitle>
-              <CardDescription className="text-[11px]">Upload or link a logo image. The logo appears in the sidebar and browser tab.</CardDescription>
+              <CardDescription className="text-[11px] text-slate-400 font-medium">Upload or link a logo image. The logo appears in the sidebar and browser tab.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -437,14 +437,14 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
 
           {/* Save Branding Button */}
           <div className="flex items-center gap-3">
-            <Button onClick={saveSettings} className="h-9 text-xs"><Save className="w-3.5 h-3.5 mr-1.5" /> Save Branding Changes</Button>
-            <p className="text-[10px] text-muted-foreground">Changes will apply immediately after saving</p>
+            <Button onClick={saveSettings} className="h-9 text-xs rounded-lg shadow-sm font-medium"><Save className="w-3.5 h-3.5 mr-1.5" /> Save Branding Changes</Button>
+            <p className="text-[10px] text-slate-400 font-medium">Changes will apply immediately after saving</p>
           </div>
         </TabsContent>
 
         <TabsContent value="import" className="space-y-4">
           {/* Download Template */}
-          <Card className="shadow-sm ring-1 ring-emerald-200 bg-gradient-to-r from-emerald-50/60 to-teal-50/40">
+          <Card className="shadow-md ring-1 ring-emerald-200/70 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/40">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-semibold flex items-center gap-2">
                 <span className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-emerald-700">
@@ -568,10 +568,10 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card className="shadow-md border-slate-200/60">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                <span className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+              <CardTitle className="text-xs font-bold flex items-center gap-2 tracking-tight text-slate-800">
+                <span className="w-5 h-5 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm">
                   <FileSpreadsheet className="w-3 h-3" />
                 </span>
                 Import from Excel
@@ -730,11 +730,11 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
 
         <TabsContent value="categories" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <Card className="shadow-sm">
+            <Card className="shadow-md border-slate-200/60">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs font-semibold">Expense Categories ({expenseCategories.length})</CardTitle>
-                  <Button size="sm" variant="outline" onClick={openCreateCat} className="h-7 text-[11px]"><Plus className="w-3 h-3 mr-1" />Add</Button>
+                  <CardTitle className="text-xs font-bold tracking-tight text-slate-800">Expense Categories ({expenseCategories.length})</CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateCat} className="h-7 text-[11px] rounded-lg font-medium shadow-sm"><Plus className="w-3 h-3 mr-1" />Add</Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -757,8 +757,8 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                 </div>
               </CardContent>
             </Card>
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-semibold">Receipt Categories ({receiptCategories.length})</CardTitle></CardHeader>
+            <Card className="shadow-md border-slate-200/60">
+              <CardHeader className="pb-2"><CardTitle className="text-xs font-bold tracking-tight text-slate-800">Receipt Categories ({receiptCategories.length})</CardTitle></CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-80 overflow-y-auto custom-scrollbar">
                   <Table>
@@ -782,11 +782,11 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
         </TabsContent>
 
         <TabsContent value="projects" className="space-y-4">
-          <Card className="shadow-sm">
+          <Card className="shadow-md border-slate-200/60">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-semibold">Projects & Clients ({projects.length})</CardTitle>
-                <Button size="sm" variant="outline" onClick={openCreateProj} className="h-7 text-[11px]"><Plus className="w-3 h-3 mr-1" />Add</Button>
+                <CardTitle className="text-xs font-bold tracking-tight text-slate-800">Projects & Clients ({projects.length})</CardTitle>
+                <Button size="sm" variant="outline" onClick={openCreateProj} className="h-7 text-[11px] rounded-lg font-medium shadow-sm"><Plus className="w-3 h-3 mr-1" />Add</Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -813,10 +813,10 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">
-          <Card className="shadow-sm">
+          <Card className="shadow-md border-slate-200/60">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-semibold">System Configuration</CardTitle>
-              <CardDescription className="text-[11px]">Financial year, thresholds, and margin settings</CardDescription>
+              <CardTitle className="text-xs font-bold tracking-tight text-slate-800">System Configuration</CardTitle>
+              <CardDescription className="text-[11px] text-slate-400 font-medium">Financial year, thresholds, and margin settings</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

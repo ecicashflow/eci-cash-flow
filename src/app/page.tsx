@@ -36,14 +36,16 @@ class ViewErrorBoundary extends Component<{ children: React.ReactNode; onRetry: 
     if (this.state.hasError) {
       return (
         <div className="flex items-center justify-center h-64">
-          <div className="text-center max-w-md">
-            <AlertTriangle className="w-10 h-10 mx-auto text-destructive mb-3" />
-            <h3 className="text-lg font-semibold mb-1">Something went wrong</h3>
-            <p className="text-sm text-muted-foreground mb-4">
+          <div className="text-center max-w-md bg-card/80 backdrop-blur-sm border border-border/60 rounded-2xl p-8 shadow-lg shadow-destructive/5">
+            <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-7 h-7 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1.5 tracking-tight">Something went wrong</h3>
+            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
               {this.state.error?.message || 'An unexpected error occurred while rendering this view.'}
             </p>
-            <Button onClick={() => { this.setState({ hasError: false, error: null }); this.props.onRetry(); }} variant="outline" size="sm">
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            <Button onClick={() => { this.setState({ hasError: false, error: null }); this.props.onRetry(); }} variant="outline" size="sm" className="gap-1.5 rounded-lg">
+              <RefreshCw className="w-3.5 h-3.5" />
               Retry
             </Button>
           </div>
@@ -176,11 +178,13 @@ export default function Home() {
     // State 1: Initial loading (no previous data)
     if (loading && !dashboardData && !fetchError) {
       return (
-        <div className="flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-72">
           <div className="text-center">
-            <RefreshCw className="w-7 h-7 animate-spin mx-auto text-primary mb-2" />
-            <p className="text-muted-foreground text-sm">Loading {appName.toLowerCase()} data...</p>
-            <p className="text-[10px] text-muted-foreground mt-1">Connecting to database...</p>
+            <div className="w-14 h-14 rounded-2xl bg-primary/8 flex items-center justify-center mx-auto mb-4">
+              <RefreshCw className="w-7 h-7 animate-spin text-primary" />
+            </div>
+            <p className="text-sm font-medium text-foreground/80">Loading {appName.toLowerCase()} data...</p>
+            <p className="text-xs text-muted-foreground mt-1.5">Connecting to database...</p>
           </div>
         </div>
       );
@@ -189,13 +193,15 @@ export default function Home() {
     // State 2: Fetch error with no data
     if (fetchError && !dashboardData) {
       return (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center max-w-md">
-            <AlertTriangle className="w-10 h-10 mx-auto text-destructive mb-3" />
-            <h3 className="text-lg font-semibold mb-1">Failed to Load Data</h3>
-            <p className="text-sm text-muted-foreground mb-4">{fetchError}</p>
-            <Button onClick={fetchDashboard} variant="outline" size="sm">
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+        <div className="flex items-center justify-center h-72">
+          <div className="text-center max-w-md bg-card/80 backdrop-blur-sm border border-border/60 rounded-2xl p-8 shadow-lg shadow-destructive/5">
+            <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-7 h-7 text-destructive" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1.5 tracking-tight">Failed to Load Data</h3>
+            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">{fetchError}</p>
+            <Button onClick={fetchDashboard} variant="outline" size="sm" className="gap-1.5 rounded-lg">
+              <RefreshCw className="w-3.5 h-3.5" />
               Retry
             </Button>
           </div>
@@ -206,13 +212,15 @@ export default function Home() {
     // State 3: No data and no error and not loading
     if (!dashboardData) {
       return (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center max-w-md">
-            <AlertTriangle className="w-10 h-10 mx-auto text-amber-500 mb-3" />
-            <h3 className="text-lg font-semibold mb-1">No Data Available</h3>
-            <p className="text-sm text-muted-foreground mb-4">Dashboard data could not be loaded. Click retry to try again.</p>
-            <Button onClick={fetchDashboard} variant="outline" size="sm">
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+        <div className="flex items-center justify-center h-72">
+          <div className="text-center max-w-md bg-card/80 backdrop-blur-sm border border-border/60 rounded-2xl p-8 shadow-lg shadow-amber-500/5">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-7 h-7 text-amber-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1.5 tracking-tight">No Data Available</h3>
+            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">Dashboard data could not be loaded. Click retry to try again.</p>
+            <Button onClick={fetchDashboard} variant="outline" size="sm" className="gap-1.5 rounded-lg">
+              <RefreshCw className="w-3.5 h-3.5" />
               Retry
             </Button>
           </div>
@@ -247,40 +255,52 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-60' : 'w-14'} transition-all duration-300 bg-[var(--sidebar)] text-[var(--sidebar-foreground)] flex flex-col fixed h-full z-30`}>
-        <div className="flex items-center gap-2.5 px-3 py-4 border-b border-[var(--sidebar-border)]">
-          <div className="w-8 h-8 rounded-xl bg-[var(--sidebar-primary)] flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <Image src={appLogoUrl} alt={`${appName} Logo`} width={32} height={32} className="w-full h-full object-cover rounded-xl" unoptimized />
+      {/* ───── Sidebar ───── */}
+      <aside
+        className={`${sidebarOpen ? 'w-64' : 'w-[68px]'} transition-all duration-300 ease-out flex flex-col fixed h-full z-30`}
+        style={{
+          background: 'linear-gradient(180deg, oklch(0.20 0.055 265) 0%, oklch(0.14 0.06 265) 100%)',
+          boxShadow: '2px 0 20px -4px oklch(0.14 0.06 265 / 0.5)',
+        }}
+      >
+        {/* Logo / Brand Area */}
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-white/[0.06]">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-white/10" style={{ background: 'linear-gradient(135deg, oklch(0.55 0.18 265), oklch(0.40 0.14 250))' }}>
+            <Image src={appLogoUrl} alt={`${appName} Logo`} width={36} height={36} className="w-full h-full object-cover rounded-xl" unoptimized />
           </div>
           {sidebarOpen && (
             <div className="animate-fade-in min-w-0">
-              <h1 className="text-sm font-bold tracking-tight truncate">{appName}</h1>
-              <p className="text-[10px] opacity-50">{rangeLabel}</p>
+              <h1 className="text-[13px] font-bold tracking-tight text-white/95 truncate">{appName}</h1>
+              <p className="text-[10px] text-white/35 font-medium mt-0.5">{rangeLabel}</p>
             </div>
           )}
         </div>
 
-        <nav className="flex-1 py-2 px-1.5 space-y-0.5">
+        {/* Navigation */}
+        <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto custom-scrollbar">
           {NAV_ITEMS.map((item, idx) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             const showDivider = idx === 1 || idx === 4;
             return (
               <React.Fragment key={item.id}>
-                {showDivider && <div className="my-2 border-t border-[var(--sidebar-border)]/40" />}
+                {showDivider && <div className="my-2.5 mx-1 border-t border-white/[0.06]" />}
                 <button
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-[13px] font-medium ${
+                  className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-[13px] font-medium relative ${
                     isActive
-                      ? 'bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]'
-                      : 'text-[var(--sidebar-foreground)] opacity-60 hover:opacity-100 hover:bg-[var(--sidebar-accent)]/50'
+                      ? 'bg-white/[0.10] text-white shadow-sm shadow-black/10'
+                      : 'text-white/50 hover:text-white/85 hover:bg-white/[0.05]'
                   }`}
                 >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  {/* Left accent bar for active state */}
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: 'oklch(0.65 0.18 265)' }} />
+                  )}
+                  <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-[oklch(0.70_0.18_265)]' : 'text-white/40 group-hover:text-white/70'}`} />
                   {sidebarOpen && <span className="animate-fade-in truncate">{item.label}</span>}
                   {item.id === 'dashboard' && deficitCount > 0 && sidebarOpen && (
-                    <Badge variant="destructive" className="ml-auto text-[9px] px-1.5 py-0 h-4 min-w-[18px] text-center">
+                    <Badge variant="destructive" className="ml-auto text-[9px] px-1.5 py-0 h-[18px] min-w-[18px] text-center rounded-md">
                       {deficitCount}
                     </Badge>
                   )}
@@ -290,44 +310,46 @@ export default function Home() {
           })}
         </nav>
 
-        <div className="px-1.5 py-2 border-t border-[var(--sidebar-border)]">
+        {/* Collapse Toggle */}
+        <div className="px-2.5 py-3 border-t border-white/[0.06]">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex items-center justify-center px-2 py-1.5 rounded-lg text-[var(--sidebar-foreground)] opacity-50 hover:opacity-100 hover:bg-[var(--sidebar-accent)]/50 transition-all"
+            className="w-full flex items-center justify-center p-2 rounded-xl text-white/35 hover:text-white/70 hover:bg-white/[0.05] transition-all duration-200"
           >
-            {sidebarOpen ? <ChevronRight className="w-3.5 h-3.5 rotate-180" /> : <Menu className="w-3.5 h-3.5" />}
+            {sidebarOpen ? <ChevronRight className="w-4 h-4 rotate-180" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className={`flex-1 ${sidebarOpen ? 'ml-60' : 'ml-14'} transition-all duration-300 flex flex-col min-h-screen`}>
-        <header className="sticky top-0 z-20 bg-background/90 backdrop-blur-md border-b">
-          <div className="flex items-center justify-between px-5 py-2.5">
+      {/* ───── Main Content ───── */}
+      <main className={`flex-1 ${sidebarOpen ? 'ml-64' : 'ml-[68px]'} transition-all duration-300 ease-out flex flex-col min-h-screen`}>
+        {/* Header */}
+        <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border/60" style={{ boxShadow: '0 1px 8px -2px oklch(0.14 0.06 265 / 0.06)' }}>
+          <div className="flex items-center justify-between px-6 py-3">
             <div className="flex items-center gap-4">
               <div>
-                <h2 className="text-base font-semibold">{NAV_ITEMS.find(n => n.id === activeTab)?.label}</h2>
+                <h2 className="text-[15px] font-semibold tracking-tight">{NAV_ITEMS.find(n => n.id === activeTab)?.label}</h2>
                 {dashboardData && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
                     {companyName} Cash Flow &middot; {rangeLabel}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               {/* Date Range Picker */}
               <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
-                    <CalendarRange className="w-3.5 h-3.5" />
-                    <span className="max-w-[200px] truncate">{formatDisplayDate(startDate)} — {formatDisplayDate(endDate)}</span>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-2 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
+                    <CalendarRange className="w-3.5 h-3.5 text-primary/70" />
+                    <span className="max-w-[200px] truncate font-medium">{formatDisplayDate(startDate)} — {formatDisplayDate(endDate)}</span>
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <div className="p-3 space-y-3">
+                <PopoverContent className="w-auto p-0 rounded-xl border-border/60 shadow-xl" align="end">
+                  <div className="p-4 space-y-4">
                     {/* Quick presets */}
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Quick Select</p>
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Quick Select</p>
                       <div className="flex flex-wrap gap-1.5">
                         {[
                           { key: 'fy-2026', label: 'FY 2026-27' },
@@ -342,7 +364,7 @@ export default function Home() {
                             key={p.key}
                             variant="outline"
                             size="sm"
-                            className="h-6 text-[10px] px-2"
+                            className="h-7 text-[10px] px-2.5 rounded-lg font-medium border-border/70 hover:border-primary/30 hover:bg-primary/[0.04] hover:text-primary transition-all duration-200"
                             onClick={() => { applyPreset(p.key); setCalendarOpen(false); }}
                           >
                             {p.label}
@@ -351,11 +373,11 @@ export default function Home() {
                       </div>
                     </div>
                     {/* Custom date range */}
-                    <div className="border-t pt-3 space-y-2">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Custom Range</p>
-                      <div className="flex items-center gap-2">
+                    <div className="border-t border-border/50 pt-4 space-y-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Custom Range</p>
+                      <div className="flex items-center gap-3">
                         <div className="flex-1">
-                          <label className="text-[9px] text-muted-foreground">From</label>
+                          <label className="text-[10px] text-muted-foreground font-medium mb-1 block">From</label>
                           <input
                             type="date"
                             value={formatDateStr(startDate)}
@@ -363,12 +385,12 @@ export default function Home() {
                               const d = new Date(e.target.value);
                               if (!isNaN(d.getTime())) setStartDate(d);
                             }}
-                            className="w-full border rounded px-2 py-1 text-xs"
+                            className="w-full border border-border/70 rounded-lg px-2.5 py-1.5 text-xs focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all duration-200"
                           />
                         </div>
-                        <span className="text-muted-foreground text-xs mt-3">→</span>
+                        <span className="text-muted-foreground/50 text-xs mt-5">→</span>
                         <div className="flex-1">
-                          <label className="text-[9px] text-muted-foreground">To</label>
+                          <label className="text-[10px] text-muted-foreground font-medium mb-1 block">To</label>
                           <input
                             type="date"
                             value={formatDateStr(endDate)}
@@ -376,13 +398,13 @@ export default function Home() {
                               const d = new Date(e.target.value);
                               if (!isNaN(d.getTime())) setEndDate(d);
                             }}
-                            className="w-full border rounded px-2 py-1 text-xs"
+                            className="w-full border border-border/70 rounded-lg px-2.5 py-1.5 text-xs focus:border-primary/40 focus:ring-2 focus:ring-primary/10 transition-all duration-200"
                           />
                         </div>
                       </div>
                       <Button
                         size="sm"
-                        className="w-full h-7 text-xs"
+                        className="w-full h-8 text-xs rounded-lg font-medium shadow-sm"
                         onClick={() => { setCalendarOpen(false); }}
                       >
                         Apply Range
@@ -393,25 +415,29 @@ export default function Home() {
               </Popover>
 
               {deficitCount > 0 && activeTab !== 'dashboard' && (
-                <Badge variant="destructive" className="text-[10px] gap-1 px-2">
+                <Badge variant="destructive" className="text-[10px] gap-1 px-2.5 py-0.5 rounded-lg font-medium shadow-sm shadow-destructive/10">
                   <AlertTriangle className="w-3 h-3" />
                   {deficitCount} deficit
                 </Badge>
               )}
-              <Button variant="outline" size="sm" onClick={fetchDashboard} className="h-7 text-xs">
-                <RefreshCw className={`w-3 h-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              <Button variant="outline" size="sm" onClick={fetchDashboard} className="h-8 text-xs gap-1.5 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
+                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 p-5">
+        {/* Content Area */}
+        <div className="flex-1 p-6">
           {renderContent()}
         </div>
 
-        <footer className="border-t px-5 py-2.5 text-center text-[10px] text-muted-foreground mt-auto">
-          {appName} &middot; {companyName} Office Cash Flow Management &middot; {rangeLabel}
+        {/* Footer */}
+        <footer className="border-t border-border/40 bg-background/50 px-6 py-3 text-center">
+          <p className="text-[10px] text-muted-foreground/60 font-medium tracking-wide">
+            {appName} &middot; {companyName} Office Cash Flow Management &middot; {rangeLabel}
+          </p>
         </footer>
       </main>
     </div>
