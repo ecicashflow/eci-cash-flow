@@ -41,28 +41,27 @@ const MONTH_NUMBERS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
 
 /**
  * Parse the financial year period string from Row 2.
- * E.g., "April, 2026 - March, 2027" => { startYear: 2026, startMonth: 4, endYear: 2027, endMonth: 3 }
+ * E.g., "April, 2026 - March, 2027" => { startYear: 2026 }
  */
-function parsePeriod(periodStr: string): { startYear: number; startMonth: number; endYear: number; endMonth: number } {
+function parsePeriod(periodStr: string): { startYear: number } {
   // Try pattern: "April, 2026 - March, 2027" or similar
   const match = periodStr.match(/(\w+)\s*,?\s*(\d{4})\s*[-–]\s*(\w+)\s*,?\s*(\d{4})/i);
   if (match) {
     const startYear = parseInt(match[2], 10);
-    const endYear = parseInt(match[4], 10);
-    return { startYear, startMonth: 4, endYear, endMonth: 3 };
+    return { startYear };
   }
 
   // Fallback: try to find a 4-digit year
   const yearMatch = periodStr.match(/(\d{4})/);
   if (yearMatch) {
     const startYear = parseInt(yearMatch[1], 10);
-    return { startYear, startMonth: 4, endYear: startYear + 1, endMonth: 3 };
+    return { startYear };
   }
 
   // Ultimate fallback: current year
   const now = new Date();
   const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  return { startYear: currentYear, startMonth: 4, endYear: currentYear + 1, endMonth: 3 };
+  return { startYear: currentYear };
 }
 
 /**
@@ -70,7 +69,6 @@ function parsePeriod(periodStr: string): { startYear: number; startMonth: number
  */
 function buildFinancialYearMonths(startYear: number): Array<{ month: number; year: number }> {
   return MONTH_NUMBERS.map((m, i) => {
-    // Months Apr(4)-Dec(12) belong to startYear, Jan(1)-Mar(3) belong to startYear+1
     const year = i < 9 ? startYear : startYear + 1;
     return { month: m, year };
   });
@@ -78,14 +76,15 @@ function buildFinancialYearMonths(startYear: number): Array<{ month: number; yea
 
 /**
  * Get a numeric value from a cell, handling '-' and other non-numeric values.
+ * Rounds to nearest integer.
  */
 function getNumericValue(cell: unknown): number {
   if (cell === undefined || cell === null || cell === '') return 0;
-  if (typeof cell === 'number') return cell;
+  if (typeof cell === 'number') return Math.round(cell);
   if (typeof cell === 'string') {
     if (cell.trim() === '-' || cell.trim() === '') return 0;
     const parsed = parseFloat(cell.replace(/,/g, ''));
-    return isNaN(parsed) ? 0 : parsed;
+    return isNaN(parsed) ? 0 : Math.round(parsed);
   }
   return 0;
 }
@@ -101,26 +100,21 @@ function getStringValue(cell: unknown): string {
 /**
  * Parse bank account details from column C string.
  * E.g., "Bank Al Falah # 0234-1004781004 (G-11 Markaz)"
- * => { bankName: "Bank Al Falah", accountNumber: "0234-1004781004", accountName: "G-11 Markaz" }
  */
 function parseBankAccountDetails(detail: string): { bankName: string; accountNumber: string; accountName: string } {
   let bankName = '';
   let accountNumber = '';
   let accountName = '';
 
-  // Try to extract account number after '#'
   const hashMatch = detail.match(/#\s*([\d\-]+)/);
   if (hashMatch) {
     accountNumber = hashMatch[1];
-    // Bank name is everything before the #
     bankName = detail.substring(0, detail.indexOf('#')).trim();
-    // Account name is in parentheses after the account number
     const parenMatch = detail.match(/\(([^)]+)\)/);
     if (parenMatch) {
       accountName = parenMatch[1].trim();
     }
   } else {
-    // No account number found - try parentheses for account name
     const parenMatch = detail.match(/\(([^)]+)\)/);
     if (parenMatch) {
       accountName = parenMatch[1].trim();
@@ -131,6 +125,58 @@ function parseBankAccountDetails(detail: string): { bankName: string; accountNum
   }
 
   return { bankName, accountNumber, accountName };
+}
+
+/**
+ * Generate a short code from a project/client name.
+ * E.g., "PSDF - Mobilization Services" => "PSDF-MS"
+ *       "Care International (Phase-I)" => "CI-P1"
+ */
+function generateProjectCode(name: string): string {
+  // Remove common words
+  const cleaned = name.replace(/\b(and|the|of|for|in|&)\b/gi, '').trim();
+
+  // If it has a dash pattern like "PSDF - Mobilization Services"
+  const dashMatch = cleaned.match(/^([A-Z]+)\s*[-–]\s*(.+)/);
+  if (dashMatch) {
+    const prefix = dashMatch[1];
+    const suffix = dashMatch[2];
+    const suffixParts = suffix.split(/\s+/).filter(p => p.length > 0);
+    const suffixCode = suffixParts.map(p => p.charAt(0).toUpperCase()).join('');
+    return `${prefix}-${suffixCode}`;
+  }
+
+  // Otherwise take first letter of each word
+  const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+  if (words.length <= 2) {
+    return words.map(w => w.substring(0, 3).toUpperCase()).join('');
+  }
+  return words.map(w => w.charAt(0).toUpperCase()).join('').substring(0, 8);
+}
+
+/**
+ * Match an expense category name to a project name from receipt clients.
+ * E.g., "PSDF - Online Training Delivery and Mentorship" matches "PSDF (Online Training Delivery and Mentorship)"
+ */
+function matchExpenseToProject(categoryName: string, receiptClientNames: Set<string>): string {
+  // Direct match
+  if (receiptClientNames.has(categoryName)) return categoryName;
+
+  // Try normalized match: remove dashes, parens, extra spaces
+  const normalize = (s: string) => s.replace(/[-()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  const normalizedCategory = normalize(categoryName);
+  for (const clientName of receiptClientNames) {
+    if (normalize(clientName) === normalizedCategory) return clientName;
+  }
+
+  // Try partial match (category contains client name or vice versa)
+  for (const clientName of receiptClientNames) {
+    const nc = normalize(clientName);
+    if (normalizedCategory.includes(nc) || nc.includes(normalizedCategory)) return clientName;
+  }
+
+  return '';
 }
 
 export async function POST(req: NextRequest) {
@@ -164,7 +210,6 @@ export async function POST(req: NextRequest) {
     }
 
     const sheet = workbook.Sheets[sheetName];
-    // Convert to array of arrays (header:1 gives rows as arrays)
     const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
     // Validate title in Row 1 (index 0)
@@ -182,14 +227,14 @@ export async function POST(req: NextRequest) {
     const { startYear } = parsePeriod(periodStr);
     const fyMonths = buildFinancialYearMonths(startYear);
 
-    // 3. Clear all existing data (in order due to potential dependencies)
+    // 4. Clear all existing data (in order due to potential dependencies)
     await db.receipt.deleteMany({});
     await db.expense.deleteMany({});
     await db.bankAccount.deleteMany({});
     await db.category.deleteMany({});
     await db.projectClient.deleteMany({});
 
-    // 4. Extract and insert bank accounts (rows 6-8, 0-based indices 5-7)
+    // 5. Extract and insert bank accounts (rows 6-8, 0-based indices 5-7)
     const bankAccountData: Array<{
       bankName: string;
       accountName: string;
@@ -204,10 +249,9 @@ export async function POST(req: NextRequest) {
       const detail = getStringValue(row[2]); // Column C
       if (!detail || detail === '-') continue;
 
-      const balance = getNumericValue(row[14]); // Column O
+      const balance = getNumericValue(row[14]); // Column O - rounds to integer
       const parsed = parseBankAccountDetails(detail);
 
-      // Only add if we have a meaningful bank name
       if (parsed.bankName) {
         bankAccountData.push({
           bankName: parsed.bankName,
@@ -226,7 +270,7 @@ export async function POST(req: NextRequest) {
       bankAccountsCount = result.count;
     }
 
-    // 5. Extract and insert receipts (rows 13-36, 0-based indices 12-35)
+    // 6. Extract and insert receipts (rows 13-36, 0-based indices 12-35)
     const receiptData: Array<{
       date: Date;
       month: number;
@@ -247,19 +291,16 @@ export async function POST(req: NextRequest) {
       const clientName = getStringValue(row[2]); // Column C
       if (!clientName || clientName === '-') continue;
 
-      // Track unique client names
       receiptClientNames.add(clientName);
 
       const remarks = getStringValue(row[16]); // Column Q
 
-      // Iterate over each month column
       for (let m = 0; m < 12; m++) {
         const colIdx = MONTH_COL_INDICES[m];
-        const amount = getNumericValue(row[colIdx]);
+        const amount = getNumericValue(row[colIdx]); // Already rounded
 
         if (amount > 0) {
           const { month, year } = fyMonths[m];
-          // Create date as the 1st of the month
           const date = new Date(year, month - 1, 1);
 
           receiptData.push({
@@ -284,7 +325,7 @@ export async function POST(req: NextRequest) {
       receiptsCount = result.count;
     }
 
-    // 6. Extract and insert expenses (rows 42-79, 0-based indices 41-78)
+    // 7. Extract and insert expenses (rows 42-79, 0-based indices 41-78)
     const expenseData: Array<{
       date: Date;
       month: number;
@@ -312,23 +353,21 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Clean up trailing whitespace from category name
       const cleanCategoryName = categoryName.trim();
-
-      // Track unique category names
       expenseCategoryNames.add(cleanCategoryName);
 
       const isOperational = OPERATIONAL_CATEGORIES.has(cleanCategoryName) || OPERATIONAL_CATEGORIES.has(categoryName);
       const remarks = getStringValue(row[16]); // Column Q
 
-      // Iterate over each month column
+      // Auto-match project from receipt clients for project-based expenses
+      const matchedProject = !isOperational ? matchExpenseToProject(cleanCategoryName, receiptClientNames) : '';
+
       for (let m = 0; m < 12; m++) {
         const colIdx = MONTH_COL_INDICES[m];
-        const amount = getNumericValue(row[colIdx]);
+        const amount = getNumericValue(row[colIdx]); // Already rounded
 
         if (amount > 0) {
           const { month, year } = fyMonths[m];
-          // Create date as the 1st of the month
           const date = new Date(year, month - 1, 1);
 
           expenseData.push({
@@ -338,7 +377,7 @@ export async function POST(req: NextRequest) {
             category: cleanCategoryName,
             description: cleanCategoryName,
             amount,
-            project: '',
+            project: matchedProject,
             status: 'Expected',
             notes: remarks || '',
             isOperational,
@@ -355,7 +394,7 @@ export async function POST(req: NextRequest) {
       expensesCount = result.count;
     }
 
-    // 7. Auto-generate categories from expense heads and receipt clients
+    // 8. Auto-generate categories from expense heads and receipt clients
     const categoryData: Array<{
       name: string;
       type: string;
@@ -363,7 +402,6 @@ export async function POST(req: NextRequest) {
       isOperational: boolean;
     }> = [];
 
-    // Add expense categories
     for (const catName of expenseCategoryNames) {
       categoryData.push({
         name: catName,
@@ -373,7 +411,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Add receipt categories (client projects)
     for (const clientName of receiptClientNames) {
       categoryData.push({
         name: clientName,
@@ -391,7 +428,7 @@ export async function POST(req: NextRequest) {
       categoriesCount = result.count;
     }
 
-    // 8. Auto-generate project clients from receipt clients
+    // 9. Auto-generate project clients from receipt clients (with auto-generated codes)
     const projectClientData: Array<{
       name: string;
       code: string;
@@ -401,7 +438,7 @@ export async function POST(req: NextRequest) {
     for (const clientName of receiptClientNames) {
       projectClientData.push({
         name: clientName,
-        code: '',
+        code: generateProjectCode(clientName),
         active: true,
       });
     }
@@ -414,7 +451,7 @@ export async function POST(req: NextRequest) {
       projectsCount = result.count;
     }
 
-    // 9. Update settings (financial_year_start, financial_year_end)
+    // 10. Update settings (financial_year_start, financial_year_end)
     const fyStartStr = `${startYear}-04-01`;
     const fyEndStr = `${startYear + 1}-03-31`;
 
@@ -442,7 +479,7 @@ export async function POST(req: NextRequest) {
       create: { key: 'last_import_date', value: new Date().toISOString() },
     });
 
-    // 10. Return JSON summary
+    // 11. Return JSON summary
     return NextResponse.json({
       success: true,
       bankAccounts: bankAccountsCount,

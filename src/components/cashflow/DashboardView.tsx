@@ -8,7 +8,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatPKRFull, formatCompact, formatPKR, formatLakhs, MONTH_NAMES } from '@/lib/format';
+import { formatPKRFull, formatCompact, formatPKR, formatMillions, MONTH_NAMES } from '@/lib/format';
 
 // Lazy-load recharts to prevent SSR/hydration crashes
 const LazyRecharts = lazy(() => import('@/components/cashflow/RechartsCharts'));
@@ -57,7 +57,7 @@ function KpiCard({ title, value, icon: Icon, subtitle, tooltip, delta, accent }:
             {formatPKRFull(value)}
           </p>
           <div className="flex items-center gap-2 mt-1.5">
-            <p className="text-[11px] text-muted-foreground">{formatLakhs(value)}</p>
+            <p className="text-[11px] text-muted-foreground">{formatMillions(value)}</p>
             {delta && <span className="text-[10px] text-muted-foreground">· {delta}</span>}
           </div>
           {subtitle && <p className="text-[10px] text-muted-foreground mt-1">{subtitle}</p>}
@@ -234,7 +234,7 @@ export default function DashboardView({ data }: DashboardViewProps) {
                 <div key={i} className="bg-white/60 rounded-lg p-3 ring-1 ring-orange-100">
                   <p className="text-[10px] text-muted-foreground font-medium">{item.label}</p>
                   <p className={`text-lg font-bold ${item.color}`}>{formatPKRFull(item.value)}</p>
-                  <p className="text-[10px] text-muted-foreground">{formatLakhs(item.value)}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatMillions(item.value)}</p>
                 </div>
               ))}
             </div>

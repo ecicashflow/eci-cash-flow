@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, Save, Tag, FolderOpen, Sliders, Palette, Upload, X, ImagePlus, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Tag, FolderOpen, Sliders, Palette, Upload, X, ImagePlus, FileSpreadsheet, AlertCircle, CheckCircle2, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -436,6 +436,51 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
         </TabsContent>
 
         <TabsContent value="import" className="space-y-4">
+          {/* Download Template */}
+          <Card className="shadow-sm ring-1 ring-emerald-200 bg-gradient-to-r from-emerald-50/60 to-teal-50/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-semibold flex items-center gap-2">
+                <span className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center text-emerald-700">
+                  <Download className="w-3 h-3" />
+                </span>
+                Download Excel Template
+              </CardTitle>
+              <CardDescription className="text-[11px]">
+                Download the pre-formatted template. Fill in your data and import it back — new projects, receipts, and expenses will be auto-created.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = '/api/settings/download-template?startYear=2026';
+                    a.download = 'ECI-CashFlow-Template-FY2026.xlsx';
+                    a.click();
+                  }}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> FY 2026-27 Template
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = '/api/settings/download-template?startYear=2025';
+                    a.download = 'ECI-CashFlow-Template-FY2025.xlsx';
+                    a.click();
+                  }}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> FY 2025-26 Template
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-semibold flex items-center gap-2">
@@ -445,7 +490,7 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                 Import from Excel
               </CardTitle>
               <CardDescription className="text-[11px]">
-                Upload your ECI Cash Flow Excel file (.xlsx) to auto-populate all receipts, expenses, and bank balances.
+                Upload your ECI Cash Flow Excel file (.xlsx). All receipts, expenses, bank balances, projects, and categories will be auto-created from the file.
                 This will replace all existing data.
               </CardDescription>
             </CardHeader>
@@ -497,12 +542,13 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                       <p className="text-sm font-semibold text-emerald-800">Import Successful!</p>
                     </div>
                     <p className="text-[11px] text-emerald-700">Financial Year: {importResult.financialYear}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2">
                       {[
                         { label: 'Bank Accounts', value: importResult.bankAccounts },
                         { label: 'Receipts', value: importResult.receipts },
                         { label: 'Expenses', value: importResult.expenses },
                         { label: 'Categories', value: importResult.categories },
+                        { label: 'Projects', value: importResult.projects },
                       ].map((item, i) => (
                         <div key={i} className="bg-white/60 rounded-lg p-2.5 ring-1 ring-emerald-100">
                           <p className="text-[9px] text-muted-foreground uppercase font-medium">{item.label}</p>
@@ -524,18 +570,69 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                   </div>
                 )}
 
-                {/* Format info */}
+                {/* Format info - comprehensive */}
                 <Card className="bg-muted/30 border-dashed">
                   <CardContent className="p-4">
-                    <p className="text-[11px] font-semibold text-muted-foreground mb-2">Expected Excel Format</p>
-                    <ul className="text-[10px] text-muted-foreground space-y-1 list-disc pl-4">
-                      <li>Sheet must be named &quot;Cash Flow&quot;</li>
-                      <li>Row 1: Title, Row 2: Period (e.g., &quot;April, 2026 - March, 2027&quot;)</li>
-                      <li>Rows 6-8: Bank account details with balances</li>
-                      <li>Rows 13-36: Expected receipts by client/month (columns D-O = Apr-Mar)</li>
-                      <li>Rows 42-79: Expected expenses by category/month (columns D-O = Apr-Mar)</li>
-                      <li>Operational expenses auto-detected (Electricity, Salaries, Rent, etc.)</li>
-                    </ul>
+                    <p className="text-[11px] font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Expected Excel Format</p>
+                    <div className="space-y-4">
+                      {/* Structure overview */}
+                      <div>
+                        <p className="text-[11px] font-semibold mb-1.5">Sheet Structure</p>
+                        <div className="overflow-x-auto custom-scrollbar rounded-md ring-1 ring-border">
+                          <table className="w-full text-[10px] border-collapse">
+                            <thead>
+                              <tr className="bg-muted/60">
+                                <th className="text-left p-1.5 font-semibold w-16">Row</th>
+                                <th className="text-left p-1.5 font-semibold">Column A-B</th>
+                                <th className="text-left p-1.5 font-semibold">Column C</th>
+                                <th className="text-left p-1.5 font-semibold">Columns D-O</th>
+                                <th className="text-left p-1.5 font-semibold">Column P</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-b"><td className="p-1.5 font-mono">1</td><td className="p-1.5">Title</td><td className="p-1.5 font-medium">"ECI - Cash Flow Statement"</td><td className="p-1.5">—</td><td className="p-1.5">—</td></tr>
+                              <tr className="border-b"><td className="p-1.5 font-mono">2</td><td className="p-1.5">Period</td><td className="p-1.5 font-medium">"April, 2026 - March, 2027"</td><td className="p-1.5">—</td><td className="p-1.5">—</td></tr>
+                              <tr className="border-b bg-blue-50/40"><td className="p-1.5 font-mono">6-8</td><td className="p-1.5">Bank</td><td className="p-1.5 font-medium">"Bank Name # Account# (Branch)"</td><td className="p-1.5">—</td><td className="p-1.5">Balance in Col O</td></tr>
+                              <tr className="border-b bg-emerald-50/40"><td className="p-1.5 font-mono">13-36</td><td className="p-1.5">Receipts</td><td className="p-1.5 font-medium">Client / Project name</td><td className="p-1.5">Monthly amounts (Apr→Mar)</td><td className="p-1.5">Remarks</td></tr>
+                              <tr className="border-b bg-red-50/40"><td className="p-1.5 font-mono">42-79</td><td className="p-1.5">Expenses</td><td className="p-1.5 font-medium">Expense category name</td><td className="p-1.5">Monthly amounts (Apr→Mar)</td><td className="p-1.5">Remarks</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Auto-creation info */}
+                      <div>
+                        <p className="text-[11px] font-semibold mb-1.5">Auto-Created on Import</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="bg-emerald-50/60 rounded-lg p-2 ring-1 ring-emerald-100">
+                            <p className="text-[10px] font-semibold text-emerald-800">Projects</p>
+                            <p className="text-[9px] text-emerald-700">Receipt client names become projects with auto-generated codes</p>
+                          </div>
+                          <div className="bg-amber-50/60 rounded-lg p-2 ring-1 ring-amber-100">
+                            <p className="text-[10px] font-semibold text-amber-800">Categories</p>
+                            <p className="text-[9px] text-amber-700">Expense heads + receipt clients become categories (auto-tagged operational)</p>
+                          </div>
+                          <div className="bg-sky-50/60 rounded-lg p-2 ring-1 ring-sky-100">
+                            <p className="text-[10px] font-semibold text-sky-800">Links</p>
+                            <p className="text-[9px] text-sky-700">Project expenses auto-linked to matching receipt clients</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tips */}
+                      <div>
+                        <p className="text-[11px] font-semibold mb-1.5">Tips</p>
+                        <ul className="text-[10px] text-muted-foreground space-y-1 list-disc pl-4">
+                          <li>Add a new row in the receipts section to auto-create a new project/client</li>
+                          <li>Add a new row in the expenses section to auto-create a new expense category</li>
+                          <li>Operational expenses are auto-detected (Electricity, Salaries, Rent, etc.)</li>
+                          <li>Use &quot;-&quot; or leave blank for zero-amount months</li>
+                          <li>Bank format: &quot;Bank Name # AccountNumber (Branch)&quot;</li>
+                          <li>All amounts are rounded to whole numbers (no decimals)</li>
+                          <li>Column O (Mar) also holds bank balance for bank account rows</li>
+                        </ul>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

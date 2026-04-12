@@ -1,46 +1,49 @@
 export function formatPKR(amount: number): string {
-  const absAmount = Math.abs(amount);
+  const rounded = Math.round(amount);
+  const absAmount = Math.abs(rounded);
   const formatted = absAmount.toLocaleString('en-PK', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
-  if (amount < 0) return `(${formatted})`;
+  if (rounded < 0) return `(${formatted})`;
   return formatted;
 }
 
 export function formatPKRFull(amount: number): string {
   const prefix = 'Rs. ';
-  const absAmount = Math.abs(amount);
+  const rounded = Math.round(amount);
+  const absAmount = Math.abs(rounded);
   const formatted = absAmount.toLocaleString('en-PK', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   });
-  if (amount < 0) return `${prefix}(${formatted})`;
+  if (rounded < 0) return `${prefix}(${formatted})`;
   return `${prefix}${formatted}`;
 }
 
 export function formatCompact(amount: number): string {
-  const absAmount = Math.abs(amount);
-  if (absAmount >= 10000000) {
-    const val = Math.abs(amount) / 10000000;
-    return amount < 0 ? `(${val.toFixed(1)}M)` : `${val.toFixed(1)}M`;
-  }
-  if (absAmount >= 100000) {
-    const val = Math.abs(amount) / 100000;
-    return amount < 0 ? `(${val.toFixed(1)}L)` : `${val.toFixed(1)}L`;
+  const rounded = Math.round(amount);
+  const absAmount = Math.abs(rounded);
+  if (absAmount >= 1000000) {
+    const val = absAmount / 1000000;
+    const display = val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '');
+    return rounded < 0 ? `(${display}M)` : `${display}M`;
   }
   if (absAmount >= 1000) {
-    const val = Math.abs(amount) / 1000;
-    return amount < 0 ? `(${val.toFixed(1)}K)` : `${val.toFixed(1)}K`;
+    const val = absAmount / 1000;
+    const display = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1);
+    return rounded < 0 ? `(${display}K)` : `${display}K`;
   }
-  return formatPKR(amount);
+  return formatPKR(rounded);
 }
 
-export function formatLakhs(amount: number): string {
-  const absAmount = Math.abs(amount);
-  const val = absAmount / 100000;
-  if (amount < 0) return `(${val.toFixed(2)} L)`;
-  return `${val.toFixed(2)} L`;
+export function formatMillions(amount: number): string {
+  const rounded = Math.round(amount);
+  const absAmount = Math.abs(rounded);
+  const val = absAmount / 1000000;
+  const display = val % 1 === 0 ? val.toFixed(0) : val.toFixed(2).replace(/\.?0+$/, '');
+  if (rounded < 0) return `(${display} M)`;
+  return `${display} M`;
 }
 
 export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

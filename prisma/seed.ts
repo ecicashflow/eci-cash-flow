@@ -12,9 +12,9 @@ async function seed() {
   // Seed Bank Accounts from Excel
   await db.bankAccount.createMany({
     data: [
-      { bankName: 'Bank Al Falah', accountName: 'G-11 Markaz', accountNumber: '0234-1004781004', currentBalance: 5264.73, active: true },
-      { bankName: 'FINCA', accountName: 'Operational', accountNumber: '', currentBalance: 2259.93, active: true },
-      { bankName: 'Askari Bank', accountName: 'RF', accountNumber: '', currentBalance: -14408928.34, active: true },
+      { bankName: 'Bank Al Falah', accountName: 'G-11 Markaz', accountNumber: '0234-1004781004', currentBalance: 5265, active: true },
+      { bankName: 'FINCA', accountName: 'Operational', accountNumber: '', currentBalance: 2260, active: true },
+      { bankName: 'Askari Bank', accountName: 'RF', accountNumber: '', currentBalance: -14408928, active: true },
     ],
   });
 
@@ -109,7 +109,7 @@ async function seed() {
     ['Pehal Pakistan', 312000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['CWSA', 600000, 400000, 300000, 0, 300000, 400000, 0, 0, 0, 0, 0, 0],
     ['GBRSP', 0, 149760, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ['GIZ - Migration', 2288000, 0, 0, 10753596.24, 0, 0, 0, 0, 0, 0, 0, 0],
+    ['GIZ - Migration', 2288000, 0, 0, 10753596, 0, 0, 0, 0, 0, 0, 0, 0],
     ['GIZ - TVET', 0, 1517758, 0, 2069670, 0, 3311472, 0, 2759560, 0, 0, 0, 0],
     ['IRC - L2E', 3739302, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['KPITB', 0, 1698828, 4247110, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -121,8 +121,8 @@ async function seed() {
     ['PSDF (Online Training Delivery and Mentorship) - Additional 150', 0, 0, 1148400, 1148400, 1148400, 1148400, 1148400, 1148400, 0, 0, 0, 0],
     ['Rozan', 0, 25000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['SMEDA - Training, Handholding & Mentoring', 1874686, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ['ST&IT Package-01', 208448.1, 312672.15, 1563360.75, 0, 1563360.75, 1563360.75, 0, 1563360.75, 0, 0, 1563360.75, 0],
-    ['ST&IT Package-07', 349255.2, 523882.8, 2619414, 0, 0, 0, 0, 2619414, 0, 2619414, 0, 0],
+    ['ST&IT Package-01', 208448, 312672, 1563361, 0, 1563361, 1563361, 0, 1563361, 0, 0, 1563361, 0],
+    ['ST&IT Package-07', 349255, 523883, 2619414, 0, 0, 0, 0, 2619414, 0, 2619414, 0, 0],
     ['WWF - CSA', 1362750, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['WWF - Gender Responsive', 1984762, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   ];
@@ -170,7 +170,7 @@ async function seed() {
     ['BSR - Rise Digital (US Apparel & Textiles, Unit # 2)', false, 'BSR - Rise Digital (US Apparel & Textiles, Unit # 2)', 110000, 110000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['Care International (Phase-I)', false, 'Care International (Phase-I)', 1886400, 2336400, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['CWSA', false, 'CWSA', 300000, 200000, 150000, 0, 150000, 200000, 0, 0, 0, 0, 0, 0],
-    ['GIZ - Migration', false, 'GIZ - Migration', 1800000, 350000, 7773596.24, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ['GIZ - Migration', false, 'GIZ - Migration', 1800000, 350000, 7773596, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['GIZ - TVET', false, 'GIZ - TVET', 510000, 620000, 380000, 620000, 380000, 620000, 0, 0, 0, 0, 0, 0],
     ['Pehal Pakistan', false, 'Pehal Pakistan', 100000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['PSDF - Mobilization Services', false, 'PSDF - Mobilization Services', 0, 120000, 120000, 120000, 120000, 120000, 120000, 742400, 0, 0, 0, 0],
@@ -178,7 +178,7 @@ async function seed() {
     ['PSDF - Online Training Delivery and Mentorship - Additional 150', false, 'PSDF (Online Training Delivery and Mentorship) - Additional 150', 0, 527100, 527100, 527100, 527100, 527100, 0, 0, 0, 0, 0, 0],
     ['PSDF - SDR Lahore & Faisalabad', false, 'PSDF - SDR Lahore & Faisalabad', 0, 300000, 1440000, 2182400, 2182400, 2182400, 2182400, 280000, 280000, 280000, 280000, 3712000],
     ['PSDF - SDR Northern Belt', false, 'PSDF - SDR Northern Belt', 0, 300000, 740000, 1089450, 1089450, 1089450, 1089450, 1089450, 140000, 140000, 140000, 2096700],
-    ['ST&IT', false, 'ST&IT Package-01', 938016, 350000, 2509664.85, 450000, 938016.45, 938016.45, 450000, 2509664.85, 450000, 2509664.85, 450000, 450000],
+    ['ST&IT', false, 'ST&IT Package-01', 938016, 350000, 2509665, 450000, 938016, 938016, 450000, 2509665, 450000, 2509665, 450000, 450000],
     ['Bid Securities for PSDF', false, '', 2420176, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['Director Loan (Dividend/Advance)', false, '', 0, 5150000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['Markup', true, '', 135000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -193,7 +193,7 @@ async function seed() {
     ['Zoom and Google Drive', true, '', 8500, 15000, 15000, 15000, 15000, 15000, 15000, 15000, 15000, 15000, 15000, 15000],
     ['Rent Exp', true, '', 1061070, 0, 0, 1061070, 0, 0, 1061070, 0, 1061070, 0, 0, 0],
     ['Petty Cash', true, '', 100000, 100000, 100000, 100000, 100000, 100000, 100000, 100000, 100000, 100000, 100000, 100000],
-    ['Salaries and Staff Transportation and Management Allowances', true, '', 0, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09, 3579160.09],
+    ['Salaries and Staff Transportation and Management Allowances', true, '', 0, 3579160, 3579160, 3579160, 3579160, 3579160, 3579160, 3579160, 3579160, 3579160, 3579160, 3579160],
     ['Bonus/Staff Benefits', true, '', 0, 1614005, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ['Medical Exp', true, '', 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000, 120000],
     ['EOBI', true, '', 22866, 22866, 22866, 22866, 22866, 22866, 22866, 22866, 22866, 22866, 22866, 22866],
