@@ -5,10 +5,11 @@ import Image from 'next/image';
 import {
   LayoutDashboard, Building2, ArrowDownCircle, ArrowUpCircle,
   FileText, Settings, AlertTriangle,
-  ChevronRight, RefreshCw, Menu, CalendarRange
+  ChevronRight, RefreshCw, Menu, CalendarRange, ChevronLeft, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
@@ -58,13 +59,13 @@ class ViewErrorBoundary extends Component<{ children: React.ReactNode; onRetry: 
 
 type TabId = 'dashboard' | 'bank-accounts' | 'receipts' | 'expenses' | 'reports' | 'settings';
 
-const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType; section?: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'overview' },
-  { id: 'bank-accounts', label: 'Bank Accounts', icon: Building2, section: 'data' },
-  { id: 'receipts', label: 'Receipts', icon: ArrowDownCircle, section: 'data' },
-  { id: 'expenses', label: 'Expenses', icon: ArrowUpCircle, section: 'data' },
-  { id: 'reports', label: 'Reports', icon: FileText, section: 'output' },
-  { id: 'settings', label: 'Settings', icon: Settings, section: 'config' },
+const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType; section: string; sectionLabel: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'overview', sectionLabel: 'Overview' },
+  { id: 'bank-accounts', label: 'Bank Accounts', icon: Building2, section: 'data', sectionLabel: 'Data Management' },
+  { id: 'receipts', label: 'Receipts', icon: ArrowDownCircle, section: 'data', sectionLabel: '' },
+  { id: 'expenses', label: 'Expenses', icon: ArrowUpCircle, section: 'data', sectionLabel: '' },
+  { id: 'reports', label: 'Reports', icon: FileText, section: 'output', sectionLabel: 'Output' },
+  { id: 'settings', label: 'Settings', icon: Settings, section: 'config', sectionLabel: 'Configuration' },
 ];
 
 function formatDateStr(d: Date): string {
@@ -255,74 +256,185 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* ───── Sidebar ───── */}
-      <aside
-        className={`${sidebarOpen ? 'w-64' : 'w-[68px]'} transition-all duration-300 ease-out flex flex-col fixed h-full z-30`}
-        style={{
-          background: 'linear-gradient(180deg, oklch(0.20 0.055 265) 0%, oklch(0.14 0.06 265) 100%)',
-          boxShadow: '2px 0 20px -4px oklch(0.14 0.06 265 / 0.5)',
-        }}
-      >
-        {/* Logo / Brand Area */}
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-white/[0.06]">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden ring-1 ring-white/10" style={{ background: 'linear-gradient(135deg, oklch(0.55 0.18 265), oklch(0.40 0.14 250))' }}>
-            <Image src={appLogoUrl} alt={`${appName} Logo`} width={36} height={36} className="w-full h-full object-cover rounded-xl" unoptimized />
-          </div>
-          {sidebarOpen && (
-            <div className="animate-fade-in min-w-0">
-              <h1 className="text-[13px] font-bold tracking-tight text-white/95 truncate">{appName}</h1>
-              <p className="text-[10px] text-white/35 font-medium mt-0.5">{rangeLabel}</p>
+      {/* ───── Premium Sidebar ───── */}
+      <TooltipProvider delayDuration={0}>
+        <aside
+          className={`${sidebarOpen ? 'w-[260px]' : 'w-[72px]'} transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col fixed h-full z-30`}
+          style={{
+            background: 'linear-gradient(180deg, oklch(0.19 0.058 265) 0%, oklch(0.12 0.055 265) 60%, oklch(0.10 0.05 265) 100%)',
+            boxShadow: '3px 0 24px -4px oklch(0.10 0.05 265 / 0.6), 1px 0 8px -2px oklch(0 0 0 / 0.15)',
+          }}
+        >
+          {/* Logo / Brand Area */}
+          <div className="relative px-4 pt-5 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden relative" style={{ background: 'linear-gradient(135deg, oklch(0.50 0.18 265), oklch(0.35 0.14 250))', boxShadow: '0 4px 12px -2px oklch(0.35 0.14 265 / 0.5)' }}>
+                <Image src={appLogoUrl} alt={`${appName} Logo`} width={32} height={32} className="w-8 h-8 object-cover rounded-lg" unoptimized />
+              </div>
+              {sidebarOpen && (
+                <div className="animate-fade-in min-w-0">
+                  <h1 className="text-[13px] font-bold tracking-tight text-white/95 truncate leading-tight">{appName}</h1>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Sparkles className="w-2.5 h-2.5 text-oklch(0.65 0.16 160)" style={{ color: 'oklch(0.65 0.16 160)' }} />
+                    <p className="text-[9.5px] text-white/30 font-medium truncate">{companyName} Office</p>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+            {/* Subtle bottom glow separator */}
+            <div className="absolute bottom-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, oklch(0.40 0.12 265 / 0.3), transparent)' }} />
+          </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto custom-scrollbar">
-          {NAV_ITEMS.map((item, idx) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            const showDivider = idx === 1 || idx === 4;
-            return (
-              <React.Fragment key={item.id}>
-                {showDivider && <div className="my-2.5 mx-1 border-t border-white/[0.06]" />}
+          {/* Navigation */}
+          <nav className="flex-1 py-2 px-2.5 overflow-y-auto custom-scrollbar-sidebar">
+            {NAV_ITEMS.map((item, idx) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              const showSectionLabel = sidebarOpen && item.sectionLabel;
+
+              return (
+                <React.Fragment key={item.id}>
+                  {/* Section Label */}
+                  {showSectionLabel && (
+                    <div className="flex items-center gap-2 px-3 pt-5 pb-1.5 first:pt-2">
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/20">{item.sectionLabel}</span>
+                      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, oklch(0.30 0.04 265 / 0.4), transparent)' }} />
+                    </div>
+                  )}
+                  {/* Collapsed section dot indicator */}
+                  {!sidebarOpen && item.sectionLabel && idx > 0 && (
+                    <div className="flex justify-center py-2">
+                      <div className="w-1 h-1 rounded-full bg-white/10" />
+                    </div>
+                  )}
+                  {/* Nav Item with Tooltip when collapsed */}
+                  {sidebarOpen ? (
+                    <button
+                      onClick={() => setActiveTab(item.id)}
+                      className={`group w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-200 text-[12.5px] font-medium relative mb-0.5 ${
+                        isActive
+                          ? 'text-white'
+                          : 'text-white/40 hover:text-white/80'
+                      }`}
+                      style={isActive ? {
+                        background: 'linear-gradient(135deg, oklch(0.28 0.06 265 / 0.8), oklch(0.22 0.05 265 / 0.6))',
+                        boxShadow: '0 2px 8px -2px oklch(0.30 0.06 265 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.06)',
+                      } : {}}
+                    >
+                      {/* Left accent bar for active state */}
+                      {isActive && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: 'linear-gradient(180deg, oklch(0.70 0.18 265), oklch(0.55 0.16 160))', boxShadow: '0 0 8px oklch(0.65 0.18 265 / 0.5)' }} />
+                      )}
+                      {/* Icon container */}
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                        isActive
+                          ? 'bg-white/[0.12]'
+                          : 'bg-transparent group-hover:bg-white/[0.06]'
+                      }`}>
+                        <Icon className={`w-[15px] h-[15px] flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-white/35 group-hover:text-white/65'}`} />
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                      {item.id === 'dashboard' && deficitCount > 0 && (
+                        <Badge className="ml-auto text-[9px] px-1.5 py-0 h-[17px] min-w-[17px] text-center rounded-md font-semibold border-0" style={{ background: 'oklch(0.55 0.20 20)', color: 'oklch(0.97 0.01 50)' }}>
+                          {deficitCount}
+                        </Badge>
+                      )}
+                    </button>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setActiveTab(item.id)}
+                          className={`group w-full flex items-center justify-center py-2.5 rounded-xl transition-all duration-200 relative mb-0.5 ${
+                            isActive
+                              ? 'text-white'
+                              : 'text-white/40 hover:text-white/80'
+                          }`}
+                          style={isActive ? {
+                            background: 'linear-gradient(135deg, oklch(0.28 0.06 265 / 0.8), oklch(0.22 0.05 265 / 0.6))',
+                            boxShadow: '0 2px 8px -2px oklch(0.30 0.06 265 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.06)',
+                          } : {}}
+                        >
+                          {isActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: 'linear-gradient(180deg, oklch(0.70 0.18 265), oklch(0.55 0.16 160))', boxShadow: '0 0 8px oklch(0.65 0.18 265 / 0.5)' }} />
+                          )}
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                            isActive
+                              ? 'bg-white/[0.12]'
+                              : 'bg-transparent group-hover:bg-white/[0.06]'
+                          }`}>
+                            <Icon className={`w-[17px] h-[17px] transition-colors duration-200 ${isActive ? 'text-white' : 'text-white/35 group-hover:text-white/65'}`} />
+                          </div>
+                          {item.id === 'dashboard' && deficitCount > 0 && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ background: 'oklch(0.55 0.20 20)', boxShadow: '0 0 6px oklch(0.55 0.20 20 / 0.6)' }} />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" sideOffset={8} className="bg-oklch(0.22 0.06 265) text-white border-0 text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-xl" style={{ background: 'oklch(0.22 0.06 265)' }}>
+                        {item.label}
+                        {item.id === 'dashboard' && deficitCount > 0 && ` (${deficitCount} deficit)`}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </nav>
+
+          {/* Bottom Section: Company info + Collapse Toggle */}
+          <div className="relative">
+            {/* Top glow separator */}
+            <div className="absolute top-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, oklch(0.40 0.12 265 / 0.3), transparent)' }} />
+            
+            {/* Company Info (visible when expanded) */}
+            {sidebarOpen && (
+              <div className="px-4 pt-3 pb-2 animate-fade-in">
+                <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl" style={{ background: 'oklch(0.16 0.04 265 / 0.5)' }}>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, oklch(0.40 0.12 160), oklch(0.30 0.10 250))' }}>
+                    <Building2 className="w-3.5 h-3.5 text-white/90" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10.5px] font-semibold text-white/70 truncate leading-tight">{companyName}</p>
+                    <p className="text-[8.5px] text-white/25 font-medium mt-0.5 truncate">{rangeLabel}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Collapse Toggle */}
+            <div className="px-2.5 py-2.5">
+              {sidebarOpen ? (
                 <button
-                  onClick={() => setActiveTab(item.id)}
-                  className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-[13px] font-medium relative ${
-                    isActive
-                      ? 'bg-white/[0.10] text-white shadow-sm shadow-black/10'
-                      : 'text-white/50 hover:text-white/85 hover:bg-white/[0.05]'
-                  }`}
+                  onClick={() => setSidebarOpen(false)}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all duration-200 group"
                 >
-                  {/* Left accent bar for active state */}
-                  {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: 'oklch(0.65 0.18 265)' }} />
-                  )}
-                  <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-[oklch(0.70_0.18_265)]' : 'text-white/40 group-hover:text-white/70'}`} />
-                  {sidebarOpen && <span className="animate-fade-in truncate">{item.label}</span>}
-                  {item.id === 'dashboard' && deficitCount > 0 && sidebarOpen && (
-                    <Badge variant="destructive" className="ml-auto text-[9px] px-1.5 py-0 h-[18px] min-w-[18px] text-center rounded-md">
-                      {deficitCount}
-                    </Badge>
-                  )}
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center group-hover:bg-white/[0.06] transition-all duration-200">
+                    <ChevronLeft className="w-4 h-4" />
+                  </div>
+                  <span className="text-[11px] font-medium">Collapse</span>
                 </button>
-              </React.Fragment>
-            );
-          })}
-        </nav>
-
-        {/* Collapse Toggle */}
-        <div className="px-2.5 py-3 border-t border-white/[0.06]">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-full flex items-center justify-center p-2 rounded-xl text-white/35 hover:text-white/70 hover:bg-white/[0.05] transition-all duration-200"
-          >
-            {sidebarOpen ? <ChevronRight className="w-4 h-4 rotate-180" /> : <Menu className="w-4 h-4" />}
-          </button>
-        </div>
-      </aside>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSidebarOpen(true)}
+                      className="w-full flex items-center justify-center p-2.5 rounded-xl text-white/25 hover:text-white/60 hover:bg-white/[0.04] transition-all duration-200"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={8} className="bg-oklch(0.22 0.06 265) text-white border-0 text-[11px] font-medium px-3 py-1.5 rounded-lg shadow-xl" style={{ background: 'oklch(0.22 0.06 265)' }}>
+                    Expand sidebar
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+        </aside>
+      </TooltipProvider>
 
       {/* ───── Main Content ───── */}
-      <main className={`flex-1 ${sidebarOpen ? 'ml-64' : 'ml-[68px]'} transition-all duration-300 ease-out flex flex-col min-h-screen`}>
+      <main className={`flex-1 ${sidebarOpen ? 'ml-[260px]' : 'ml-[72px]'} transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col min-h-screen`}>
         {/* Header */}
         <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border/60" style={{ boxShadow: '0 1px 8px -2px oklch(0.14 0.06 265 / 0.06)' }}>
           <div className="flex items-center justify-between px-6 py-3">

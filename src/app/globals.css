@@ -119,6 +119,22 @@
   background: oklch(0.68 0.02 250);
 }
 
+/* Sidebar scrollbar - subtler for dark background */
+.custom-scrollbar-sidebar::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+.custom-scrollbar-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar-sidebar::-webkit-scrollbar-thumb {
+  background: oklch(0.30 0.04 265 / 0.5);
+  border-radius: 10px;
+}
+.custom-scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.40 0.05 265 / 0.6);
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
