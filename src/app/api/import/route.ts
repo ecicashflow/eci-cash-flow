@@ -2,6 +2,9 @@ import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 // Operational expense categories - exact match (including common Excel variants)
 const OPERATIONAL_CATEGORIES = new Set([
   'Markup',
@@ -35,43 +38,99 @@ const OPERATIONAL_CATEGORIES = new Set([
   'Telephone and Internet',
 ]);
 
-// Month columns: D=Apr through O=Mar (0-based indices 3 through 14)
-const MONTH_COL_INDICES = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-const MONTH_NUMBERS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
-
 /**
- * Parse the financial year period string from Row 2.
- * E.g., "April, 2026 - March, 2027" => { startYear: 2026 }
+ * Resolve a month name (full or short) to month number 1-12.
  */
-function parsePeriod(periodStr: string): { startYear: number } {
-  // Try pattern: "April, 2026 - March, 2027" or similar
-  const match = periodStr.match(/(\w+)\s*,?\s*(\d{4})\s*[-–]\s*(\w+)\s*,?\s*(\d{4})/i);
-  if (match) {
-    const startYear = parseInt(match[2], 10);
-    return { startYear };
+function resolveMonth(name: string): number {
+  const n = name.trim().toLowerCase();
+  for (let i = 0; i < 12; i++) {
+    if (MONTH_FULL[i].toLowerCase() === n || MONTH_SHORT[i].toLowerCase() === n) return i + 1;
   }
-
-  // Fallback: try to find a 4-digit year
-  const yearMatch = periodStr.match(/(\d{4})/);
-  if (yearMatch) {
-    const startYear = parseInt(yearMatch[1], 10);
-    return { startYear };
-  }
-
-  // Ultimate fallback: current year
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  return { startYear: currentYear };
+  return 0;
 }
 
 /**
- * Build the array of {month, year} for the 12 months of the financial year.
+ * Parse the period string from Row 2.
+ * Supports flexible formats:
+ *   "April, 2026 - March, 2027"
+ *   "June, 2026 - May, 2027"
+ *   "Apr 2026 - Mar 2027"
+ *   etc.
  */
-function buildFinancialYearMonths(startYear: number): Array<{ month: number; year: number }> {
-  return MONTH_NUMBERS.map((m, i) => {
-    const year = i < 9 ? startYear : startYear + 1;
-    return { month: m, year };
-  });
+function parsePeriod(periodStr: string): { startMonth: number; startYear: number; endMonth: number; endYear: number } {
+  // Try pattern: "MonthName, YYYY - MonthName, YYYY" or "MonthName YYYY - MonthName YYYY"
+  const match = periodStr.match(/(\w+)\s*,?\s*(\d{4})\s*[-–]\s*(\w+)\s*,?\s*(\d{4})/i);
+  if (match) {
+    const startMonth = resolveMonth(match[1]);
+    const startYear = parseInt(match[2], 10);
+    const endMonth = resolveMonth(match[3]);
+    const endYear = parseInt(match[4], 10);
+    if (startMonth && endMonth) return { startMonth, startYear, endMonth, endYear };
+  }
+
+  // Fallback: try to find a 4-digit year and assume standard FY (Apr-Mar)
+  const yearMatch = periodStr.match(/(\d{4})/);
+  if (yearMatch) {
+    const startYear = parseInt(yearMatch[1], 10);
+    return { startMonth: 4, startYear, endMonth: 3, endYear: startYear + 1 };
+  }
+
+  // Ultimate fallback: current financial year
+  const now = new Date();
+  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return { startMonth: 4, startYear: currentYear, endMonth: 3, endYear: currentYear + 1 };
+}
+
+/**
+ * Build the array of {month, year} for each month in the range.
+ */
+function buildMonthRange(startMonth: number, startYear: number, endMonth: number, endYear: number): Array<{ month: number; year: number }> {
+  const months: Array<{ month: number; year: number }> = [];
+  let m = startMonth;
+  let y = startYear;
+  let limit = 36;
+  while (limit-- > 0) {
+    months.push({ month: m, year: y });
+    if (m === endMonth && y === endYear) break;
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return months;
+}
+
+/**
+ * Detect the month columns from a header row.
+ * Reads the header row, looks at each column value, and tries to match it to a month name.
+ * Returns an array of { colIndex, month, year } for each detected month column.
+ */
+function detectMonthColumns(headerRow: unknown[], periodMonths: Array<{ month: number; year: number }>): Array<{ colIndex: number; month: number; year: number }> {
+  const result: Array<{ colIndex: number; month: number; year: number }> = [];
+
+  // First, try to match month names in the header row against the period months
+  let monthIdx = 0;
+  for (let colIdx = 3; colIdx < headerRow.length && monthIdx < periodMonths.length; colIdx++) {
+    const cellVal = getStringValue(headerRow[colIdx]).trim();
+    const resolvedM = resolveMonth(cellVal);
+    if (resolvedM && resolvedM === periodMonths[monthIdx].month) {
+      result.push({ colIndex: colIdx, month: periodMonths[monthIdx].month, year: periodMonths[monthIdx].year });
+      monthIdx++;
+    } else if (cellVal === '' || cellVal === '-') {
+      // skip empty columns
+      continue;
+    } else {
+      // Not a month name - might be "Total/Remarks" or similar, stop
+      break;
+    }
+  }
+
+  // If we detected some months, return them
+  if (result.length > 0) return result;
+
+  // Fallback: assume columns D onwards map to period months in order (standard Apr→Mar format)
+  for (let i = 0; i < periodMonths.length; i++) {
+    result.push({ colIndex: 3 + i, month: periodMonths[i].month, year: periodMonths[i].year });
+  }
+  return result;
 }
 
 /**
@@ -129,14 +188,9 @@ function parseBankAccountDetails(detail: string): { bankName: string; accountNum
 
 /**
  * Generate a short code from a project/client name.
- * E.g., "PSDF - Mobilization Services" => "PSDF-MS"
- *       "Care International (Phase-I)" => "CI-P1"
  */
 function generateProjectCode(name: string): string {
-  // Remove common words
   const cleaned = name.replace(/\b(and|the|of|for|in|&)\b/gi, '').trim();
-
-  // If it has a dash pattern like "PSDF - Mobilization Services"
   const dashMatch = cleaned.match(/^([A-Z]+)\s*[-–]\s*(.+)/);
   if (dashMatch) {
     const prefix = dashMatch[1];
@@ -145,8 +199,6 @@ function generateProjectCode(name: string): string {
     const suffixCode = suffixParts.map(p => p.charAt(0).toUpperCase()).join('');
     return `${prefix}-${suffixCode}`;
   }
-
-  // Otherwise take first letter of each word
   const words = cleaned.split(/\s+/).filter(w => w.length > 0);
   if (words.length <= 2) {
     return words.map(w => w.substring(0, 3).toUpperCase()).join('');
@@ -156,27 +208,33 @@ function generateProjectCode(name: string): string {
 
 /**
  * Match an expense category name to a project name from receipt clients.
- * E.g., "PSDF - Online Training Delivery and Mentorship" matches "PSDF (Online Training Delivery and Mentorship)"
  */
 function matchExpenseToProject(categoryName: string, receiptClientNames: Set<string>): string {
-  // Direct match
   if (receiptClientNames.has(categoryName)) return categoryName;
-
-  // Try normalized match: remove dashes, parens, extra spaces
   const normalize = (s: string) => s.replace(/[-()]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-
   const normalizedCategory = normalize(categoryName);
   for (const clientName of receiptClientNames) {
     if (normalize(clientName) === normalizedCategory) return clientName;
   }
-
-  // Try partial match (category contains client name or vice versa)
   for (const clientName of receiptClientNames) {
     const nc = normalize(clientName);
     if (normalizedCategory.includes(nc) || nc.includes(normalizedCategory)) return clientName;
   }
-
   return '';
+}
+
+/**
+ * Find a section start row by looking for a header row containing the section marker text.
+ */
+function findSectionHeader(rows: unknown[][], marker: string): number {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const cellC = getStringValue(row[2]).toUpperCase();
+    const cellA = getStringValue(row[0]).toUpperCase();
+    if (cellC.includes(marker) || cellA.includes(marker)) return i;
+  }
+  return -1;
 }
 
 export async function POST(req: NextRequest) {
@@ -222,19 +280,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Parse period from Row 2 (index 1)
+    // 3. Parse period from Row 2 (index 1) - FLEXIBLE range
     const periodStr = getStringValue(rows[1]?.[0]);
-    const { startYear } = parsePeriod(periodStr);
-    const fyMonths = buildFinancialYearMonths(startYear);
+    const { startMonth, startYear, endMonth, endYear } = parsePeriod(periodStr);
+    const periodMonths = buildMonthRange(startMonth, startYear, endMonth, endYear);
 
-    // 4. Clear all existing data (in order due to potential dependencies)
+    // 4. Detect month columns from the header row (row index 3, which is row 4 in Excel)
+    // Try multiple header rows to find the one with month names
+    let monthColumns: Array<{ colIndex: number; month: number; year: number }> = [];
+    for (let headerRowIdx = 3; headerRowIdx <= 12; headerRowIdx++) {
+      const headerRow = rows[headerRowIdx];
+      if (!headerRow) continue;
+      const detected = detectMonthColumns(headerRow, periodMonths);
+      if (detected.length > 0) {
+        monthColumns = detected;
+        break;
+      }
+    }
+
+    if (monthColumns.length === 0) {
+      return NextResponse.json(
+        { error: 'Could not detect month columns in the Excel file. Ensure the header row contains month names (Apr, May, Jun, etc.).' },
+        { status: 400 }
+      );
+    }
+
+    // 5. Clear all existing data
     await db.receipt.deleteMany({});
     await db.expense.deleteMany({});
     await db.bankAccount.deleteMany({});
     await db.category.deleteMany({});
     await db.projectClient.deleteMany({});
 
-    // 5. Extract and insert bank accounts (rows 6-8, 0-based indices 5-7)
+    // 6. Extract and insert bank accounts
+    // Find bank section - look for "Bank Accounts" header, then bank rows follow
+    const bankHeaderIdx = findSectionHeader(rows, 'BANK ACCOUNTS');
     const bankAccountData: Array<{
       bankName: string;
       accountName: string;
@@ -242,35 +322,54 @@ export async function POST(req: NextRequest) {
       currentBalance: number;
     }> = [];
 
-    for (let rowIdx = 5; rowIdx <= 7; rowIdx++) {
-      const row = rows[rowIdx];
-      if (!row) continue;
+    if (bankHeaderIdx >= 0) {
+      // Read bank account rows (typically 3 rows after the header)
+      for (let rowIdx = bankHeaderIdx + 1; rowIdx <= bankHeaderIdx + 5 && rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
 
-      const detail = getStringValue(row[2]); // Column C
-      if (!detail || detail === '-') continue;
+        const detail = getStringValue(row[2]); // Column C
+        if (!detail || detail === '-' || detail.toLowerCase().includes('opening') || detail === '') continue;
 
-      const balance = getNumericValue(row[14]); // Column O - rounds to integer
-      const parsed = parseBankAccountDetails(detail);
+        // Stop if we hit the opening balance row or a blank row
+        if (detail.toLowerCase().includes('opening')) break;
 
-      if (parsed.bankName) {
-        bankAccountData.push({
-          bankName: parsed.bankName,
-          accountName: parsed.accountName || parsed.bankName,
-          accountNumber: parsed.accountNumber || '',
-          currentBalance: balance,
-        });
+        // The balance is in the last month column, or fallback to the last data column
+        let balance = 0;
+        // Try to get balance from the last month column (or from column O for standard 12-month)
+        const lastMonthCol = monthColumns.length > 0 ? monthColumns[monthColumns.length - 1].colIndex : 14;
+        // Also check if there's a "Total/Remarks" column after the months
+        const balanceCol = lastMonthCol + 1;
+        // Try the column after months first (Total/Remarks), then the last month column
+        const balanceFromRemarks = getNumericValue(row[balanceCol]);
+        if (balanceFromRemarks > 0) {
+          balance = balanceFromRemarks;
+        } else {
+          // Sum all month columns for bank balance, or use the last column value
+          balance = getNumericValue(row[lastMonthCol]);
+        }
+
+        const parsed = parseBankAccountDetails(detail);
+        if (parsed.bankName) {
+          bankAccountData.push({
+            bankName: parsed.bankName,
+            accountName: parsed.accountName || parsed.bankName,
+            accountNumber: parsed.accountNumber || '',
+            currentBalance: balance,
+          });
+        }
       }
     }
 
     let bankAccountsCount = 0;
     if (bankAccountData.length > 0) {
-      const result = await db.bankAccount.createMany({
-        data: bankAccountData,
-      });
+      const result = await db.bankAccount.createMany({ data: bankAccountData });
       bankAccountsCount = result.count;
     }
 
-    // 6. Extract and insert receipts (rows 13-36, 0-based indices 12-35)
+    // 7. Extract and insert receipts
+    // Find the receipts section header
+    const receiptHeaderIdx = findSectionHeader(rows, 'EXPECTED RECEIPTS');
     const receiptData: Array<{
       date: Date;
       month: number;
@@ -284,48 +383,50 @@ export async function POST(req: NextRequest) {
 
     const receiptClientNames: Set<string> = new Set();
 
-    for (let rowIdx = 12; rowIdx <= 35; rowIdx++) {
-      const row = rows[rowIdx];
-      if (!row) continue;
+    if (receiptHeaderIdx >= 0) {
+      for (let rowIdx = receiptHeaderIdx + 1; rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
 
-      const clientName = getStringValue(row[2]); // Column C
-      if (!clientName || clientName === '-') continue;
+        const clientName = getStringValue(row[2]);
+        // Stop at total row or next section
+        if (!clientName || clientName === '-' || clientName.toLowerCase().includes('total expected') || clientName.toLowerCase().includes('expected expenses')) break;
 
-      receiptClientNames.add(clientName);
+        receiptClientNames.add(clientName);
 
-      const remarks = getStringValue(row[16]); // Column Q
+        // Find remarks column - it's after the last month column
+        const lastMonthCol = monthColumns.length > 0 ? monthColumns[monthColumns.length - 1].colIndex : 14;
+        const remarksCol = lastMonthCol + 1;
+        const remarks = getStringValue(row[remarksCol]);
 
-      for (let m = 0; m < 12; m++) {
-        const colIdx = MONTH_COL_INDICES[m];
-        const amount = getNumericValue(row[colIdx]); // Already rounded
-
-        if (amount > 0) {
-          const { month, year } = fyMonths[m];
-          const date = new Date(year, month - 1, 1);
-
-          receiptData.push({
-            date,
-            month,
-            year,
-            clientProject: clientName,
-            description: '',
-            amount,
-            status: 'Expected',
-            notes: remarks || '',
-          });
+        for (const mc of monthColumns) {
+          const amount = getNumericValue(row[mc.colIndex]);
+          if (amount > 0) {
+            const date = new Date(mc.year, mc.month - 1, 1);
+            receiptData.push({
+              date,
+              month: mc.month,
+              year: mc.year,
+              clientProject: clientName,
+              description: '',
+              amount,
+              status: 'Expected',
+              notes: remarks || '',
+            });
+          }
         }
       }
     }
 
     let receiptsCount = 0;
     if (receiptData.length > 0) {
-      const result = await db.receipt.createMany({
-        data: receiptData,
-      });
+      const result = await db.receipt.createMany({ data: receiptData });
       receiptsCount = result.count;
     }
 
-    // 7. Extract and insert expenses (rows 42-79, 0-based indices 41-78)
+    // 8. Extract and insert expenses
+    // Find the expenses section header
+    const expenseHeaderIdx = findSectionHeader(rows, 'EXPECTED EXPENSES');
     const expenseData: Array<{
       date: Date;
       month: number;
@@ -341,60 +442,58 @@ export async function POST(req: NextRequest) {
 
     const expenseCategoryNames: Set<string> = new Set();
 
-    for (let rowIdx = 41; rowIdx <= 78; rowIdx++) {
-      const row = rows[rowIdx];
-      if (!row) continue;
+    if (expenseHeaderIdx >= 0) {
+      for (let rowIdx = expenseHeaderIdx + 1; rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
 
-      const categoryName = getStringValue(row[2]); // Column C
-      if (!categoryName || categoryName === '-') continue;
+        const categoryName = getStringValue(row[2]);
+        // Stop at total row or forecast balance
+        if (!categoryName || categoryName === '-' || categoryName.toLowerCase().includes('total expected') || categoryName.toLowerCase().includes('forecast')) break;
 
-      // Skip total/summary rows
-      if (categoryName.toLowerCase().includes('total') || categoryName.toLowerCase().includes('expected')) {
-        continue;
-      }
+        // Skip total/summary rows
+        if (categoryName.toLowerCase().includes('total')) continue;
 
-      const cleanCategoryName = categoryName.trim();
-      expenseCategoryNames.add(cleanCategoryName);
+        const cleanCategoryName = categoryName.trim();
+        expenseCategoryNames.add(cleanCategoryName);
 
-      const isOperational = OPERATIONAL_CATEGORIES.has(cleanCategoryName) || OPERATIONAL_CATEGORIES.has(categoryName);
-      const remarks = getStringValue(row[16]); // Column Q
+        const isOperational = OPERATIONAL_CATEGORIES.has(cleanCategoryName) || OPERATIONAL_CATEGORIES.has(categoryName);
 
-      // Auto-match project from receipt clients for project-based expenses
-      const matchedProject = !isOperational ? matchExpenseToProject(cleanCategoryName, receiptClientNames) : '';
+        const lastMonthCol = monthColumns.length > 0 ? monthColumns[monthColumns.length - 1].colIndex : 14;
+        const remarksCol = lastMonthCol + 1;
+        const remarks = getStringValue(row[remarksCol]);
 
-      for (let m = 0; m < 12; m++) {
-        const colIdx = MONTH_COL_INDICES[m];
-        const amount = getNumericValue(row[colIdx]); // Already rounded
+        // Auto-match project from receipt clients for project-based expenses
+        const matchedProject = !isOperational ? matchExpenseToProject(cleanCategoryName, receiptClientNames) : '';
 
-        if (amount > 0) {
-          const { month, year } = fyMonths[m];
-          const date = new Date(year, month - 1, 1);
-
-          expenseData.push({
-            date,
-            month,
-            year,
-            category: cleanCategoryName,
-            description: cleanCategoryName,
-            amount,
-            project: matchedProject,
-            status: 'Expected',
-            notes: remarks || '',
-            isOperational,
-          });
+        for (const mc of monthColumns) {
+          const amount = getNumericValue(row[mc.colIndex]);
+          if (amount > 0) {
+            const date = new Date(mc.year, mc.month - 1, 1);
+            expenseData.push({
+              date,
+              month: mc.month,
+              year: mc.year,
+              category: cleanCategoryName,
+              description: cleanCategoryName,
+              amount,
+              project: matchedProject,
+              status: 'Expected',
+              notes: remarks || '',
+              isOperational,
+            });
+          }
         }
       }
     }
 
     let expensesCount = 0;
     if (expenseData.length > 0) {
-      const result = await db.expense.createMany({
-        data: expenseData,
-      });
+      const result = await db.expense.createMany({ data: expenseData });
       expensesCount = result.count;
     }
 
-    // 8. Auto-generate categories from expense heads and receipt clients
+    // 9. Auto-generate categories
     const categoryData: Array<{
       name: string;
       type: string;
@@ -422,13 +521,11 @@ export async function POST(req: NextRequest) {
 
     let categoriesCount = 0;
     if (categoryData.length > 0) {
-      const result = await db.category.createMany({
-        data: categoryData,
-      });
+      const result = await db.category.createMany({ data: categoryData });
       categoriesCount = result.count;
     }
 
-    // 9. Auto-generate project clients from receipt clients (with auto-generated codes)
+    // 10. Auto-generate project clients
     const projectClientData: Array<{
       name: string;
       code: string;
@@ -445,15 +542,15 @@ export async function POST(req: NextRequest) {
 
     let projectsCount = 0;
     if (projectClientData.length > 0) {
-      const result = await db.projectClient.createMany({
-        data: projectClientData,
-      });
+      const result = await db.projectClient.createMany({ data: projectClientData });
       projectsCount = result.count;
     }
 
-    // 10. Update settings (financial_year_start, financial_year_end)
-    const fyStartStr = `${startYear}-04-01`;
-    const fyEndStr = `${startYear + 1}-03-31`;
+    // 11. Update settings with the parsed date range
+    const fyStartStr = `${startYear}-${String(startMonth).padStart(2, '0')}-01`;
+    // End date: last day of endMonth
+    const endDay = new Date(endYear, endMonth, 0).getDate();
+    const fyEndStr = `${endYear}-${String(endMonth).padStart(2, '0')}-${endDay}`;
 
     await db.setting.upsert({
       where: { key: 'financial_year_start' },
@@ -467,10 +564,11 @@ export async function POST(req: NextRequest) {
       create: { key: 'financial_year_end', value: fyEndStr },
     });
 
+    const periodLabel = `${MONTH_FULL[startMonth - 1]}, ${startYear} - ${MONTH_FULL[endMonth - 1]}, ${endYear}`;
     await db.setting.upsert({
       where: { key: 'financial_year_label' },
-      update: { value: `April, ${startYear} - March, ${startYear + 1}` },
-      create: { key: 'financial_year_label', value: `April, ${startYear} - March, ${startYear + 1}` },
+      update: { value: periodLabel },
+      create: { key: 'financial_year_label', value: periodLabel },
     });
 
     await db.setting.upsert({
@@ -479,7 +577,7 @@ export async function POST(req: NextRequest) {
       create: { key: 'last_import_date', value: new Date().toISOString() },
     });
 
-    // 11. Return JSON summary
+    // 12. Return JSON summary
     return NextResponse.json({
       success: true,
       bankAccounts: bankAccountsCount,
@@ -487,7 +585,8 @@ export async function POST(req: NextRequest) {
       expenses: expensesCount,
       categories: categoriesCount,
       projects: projectsCount,
-      financialYear: `April, ${startYear} - March, ${startYear + 1}`,
+      financialYear: periodLabel,
+      periodMonths: periodMonths.length,
     });
   } catch (error) {
     console.error('Import API error:', error);

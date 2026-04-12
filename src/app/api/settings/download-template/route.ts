@@ -1,53 +1,106 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * Build an array of {month, year, label} for each month in the range [startMonth/startYear .. endMonth/endYear].
+ */
+function buildMonthRange(startMonth: number, startYear: number, endMonth: number, endYear: number): Array<{ month: number; year: number; label: string }> {
+  const months: Array<{ month: number; year: number; label: string }> = [];
+  let m = startMonth;
+  let y = startYear;
+
+  // Safety: limit to 36 months
+  let limit = 36;
+  while (limit-- > 0) {
+    months.push({ month: m, year: y, label: MONTH_SHORT[m - 1] });
+    if (m === endMonth && y === endYear) break;
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+
+  return months;
+}
+
 /**
  * Generate and download an Excel template matching the ECI Cash Flow import format.
- * This template shows the exact structure users need to follow for importing data.
+ * Supports any custom date range (e.g., June 2026 - May 2027, April 2026 - March 2027, etc.)
  */
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
+
+    // Parse start month/year - default to April 2026
+    const startMonth = parseInt(sp.get('startMonth') || '4');
     const startYear = parseInt(sp.get('startYear') || '2026');
 
-    const wb = XLSX.utils.book_new();
+    // Parse end month/year - default to March of next year
+    const endMonth = parseInt(sp.get('endMonth') || '3');
+    const endYear = parseInt(sp.get('endYear') || String(startYear + 1));
 
-    // Create the Cash Flow sheet
+    // Validate
+    if (startMonth < 1 || startMonth > 12 || endMonth < 1 || endMonth > 12) {
+      return NextResponse.json({ error: 'Invalid month. Must be 1-12.' }, { status: 400 });
+    }
+
+    const monthRange = buildMonthRange(startMonth, startYear, endMonth, endYear);
+    const numMonths = monthRange.length;
+
+    if (numMonths < 1 || numMonths > 36) {
+      return NextResponse.json({ error: 'Date range must be between 1 and 36 months.' }, { status: 400 });
+    }
+
+    const wb = XLSX.utils.book_new();
     const data: (string | number)[][] = [];
+
+    // Helper: create an empty row with columns A, B, C, [numMonths empty], lastCol
+    const emptyDataRow = (colC: string, lastCol = ''): (string | number)[] => {
+      const row: (string | number)[] = ['', '', colC];
+      for (let i = 0; i < numMonths; i++) row.push('');
+      row.push(lastCol);
+      return row;
+    };
 
     // Row 1: Title
     data.push(['ECI - Cash Flow Statement']);
 
-    // Row 2: Period
-    data.push([`April, ${startYear} - March, ${startYear + 1}`]);
+    // Row 2: Period - fully flexible format
+    const periodLabel = `${MONTH_FULL[startMonth - 1]}, ${startYear} - ${MONTH_FULL[endMonth - 1]}, ${endYear}`;
+    data.push([periodLabel]);
 
     // Row 3: Blank
     data.push(['']);
 
-    // Row 4: Headers for bank section
-    data.push(['', '', 'Bank Accounts', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Total/Remarks']);
+    // Row 4: Headers for bank section - dynamic month columns
+    const bankHeader: (string | number)[] = ['', '', 'Bank Accounts'];
+    for (const m of monthRange) bankHeader.push(m.label);
+    bankHeader.push('Total/Remarks');
+    data.push(bankHeader);
 
-    // Rows 5-7: Bank account examples (rows 6-8 in Excel)
-    data.push(['', '', 'Bank Al Falah # 0123-4567890123 (G-11 Markaz)', '', '', '', '', '', '', '', '', '', '', '', '', 'Current Balance']);
-    data.push(['', '', 'FINCA (Operational)', '', '', '', '', '', '', '', '', '', '', '', '', 'Current Balance']);
-    data.push(['', '', 'Askari Bank (RF)', '', '', '', '', '', '', '', '', '', '', '', '', 'Current Balance']);
+    // Rows 5-7: Bank account examples
+    data.push(emptyDataRow('Bank Al Falah # 0123-4567890123 (G-11 Markaz)', 'Current Balance'));
+    data.push(emptyDataRow('FINCA (Operational)', 'Current Balance'));
+    data.push(emptyDataRow('Askari Bank (RF)', 'Current Balance'));
 
-    // Row 8: Blank
+    // Row 8-9: Blank
     data.push(['']);
-
-    // Row 9: Blank
     data.push(['']);
 
     // Row 10: Opening balance row
-    data.push(['', '', 'Opening Balance', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(emptyDataRow('Opening Balance'));
 
     // Row 11: Blank
     data.push(['']);
 
-    // Row 12: Receipts header
-    data.push(['', '', 'EXPECTED RECEIPTS', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Remarks']);
+    // Row 12: Receipts header - dynamic month columns
+    const receiptHeader: (string | number)[] = ['', '', 'EXPECTED RECEIPTS'];
+    for (const m of monthRange) receiptHeader.push(m.label);
+    receiptHeader.push('Remarks');
+    data.push(receiptHeader);
 
-    // Rows 13-36: Example receipt rows
+    // Example receipt rows
     const exampleReceipts = [
       'Bid Securities',
       'BSR - Rise Digital - Interloop, Lahore',
@@ -76,22 +129,22 @@ export async function GET(req: NextRequest) {
     ];
 
     for (const clientName of exampleReceipts) {
-      const row: (string | number)[] = ['', '', clientName];
-      for (let i = 0; i < 12; i++) row.push('');
-      row.push('');
-      data.push(row);
+      data.push(emptyDataRow(clientName));
     }
 
     // Total receipts row
-    data.push(['', '', 'Total Expected Receipts', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(emptyDataRow('Total Expected Receipts'));
 
     // Blank rows
     data.push(['']);
     data.push(['']);
     data.push(['']);
 
-    // Expense header
-    data.push(['', '', 'EXPECTED EXPENSES', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Remarks']);
+    // Expense header - dynamic month columns
+    const expenseHeader: (string | number)[] = ['', '', 'EXPECTED EXPENSES'];
+    for (const m of monthRange) expenseHeader.push(m.label);
+    expenseHeader.push('Remarks');
+    data.push(expenseHeader);
 
     // Project-based expenses
     const projectExpenses = [
@@ -112,10 +165,7 @@ export async function GET(req: NextRequest) {
     ];
 
     for (const cat of projectExpenses) {
-      const row: (string | number)[] = ['', '', cat];
-      for (let i = 0; i < 12; i++) row.push('');
-      row.push('');
-      data.push(row);
+      data.push(emptyDataRow(cat));
     }
 
     // Operational expenses
@@ -147,53 +197,41 @@ export async function GET(req: NextRequest) {
     ];
 
     for (const cat of operationalExpenses) {
-      const row: (string | number)[] = ['', '', cat];
-      for (let i = 0; i < 12; i++) row.push('');
-      row.push('');
-      data.push(row);
+      data.push(emptyDataRow(cat));
     }
 
     // Total expense row
-    data.push(['', '', 'Total Expected Expenses', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(emptyDataRow('Total Expected Expenses'));
 
     // Blank rows
     data.push(['']);
     data.push(['']);
 
     // Forecast balance row
-    data.push(['', '', 'Forecast Balance', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(emptyDataRow('Forecast Balance'));
 
     const ws = XLSX.utils.aoa_to_sheet(data);
 
-    // Set column widths
-    ws['!cols'] = [
+    // Set column widths dynamically
+    const colWidths = [
       { wch: 4 },  // A
       { wch: 4 },  // B
       { wch: 50 }, // C - Description
-      { wch: 14 }, // D - Apr
-      { wch: 14 }, // E - May
-      { wch: 14 }, // F - Jun
-      { wch: 14 }, // G - Jul
-      { wch: 14 }, // H - Aug
-      { wch: 14 }, // I - Sep
-      { wch: 14 }, // J - Oct
-      { wch: 14 }, // K - Nov
-      { wch: 14 }, // L - Dec
-      { wch: 14 }, // M - Jan
-      { wch: 14 }, // N - Feb
-      { wch: 14 }, // O - Mar
-      { wch: 20 }, // P - Remarks
     ];
+    for (let i = 0; i < numMonths; i++) colWidths.push({ wch: 14 });
+    colWidths.push({ wch: 20 }); // Last col - Remarks/Total
+    ws['!cols'] = colWidths;
 
     XLSX.utils.book_append_sheet(wb, ws, 'Cash Flow');
 
     // Generate buffer
     const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
 
+    const filenameLabel = `${MONTH_SHORT[startMonth - 1]}${startYear}-${MONTH_SHORT[endMonth - 1]}${endYear}`;
     return new NextResponse(buf, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="ECI-CashFlow-Template-FY${startYear}.xlsx"`,
+        'Content-Disposition': `attachment; filename="ECI-CashFlow-Template-${filenameLabel}.xlsx"`,
       },
     });
   } catch (error) {

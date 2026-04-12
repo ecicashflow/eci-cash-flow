@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import { MONTH_NAMES } from '@/lib/format';
 
 interface Category { id: string; name: string; type: string; active: boolean; isOperational: boolean }
 interface ProjectClient { id: string; name: string; code: string; active: boolean }
@@ -43,6 +44,12 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
   const [importError, setImportError] = useState<string | null>(null);
   const [importDragOver, setImportDragOver] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+
+  // Template date range state - default Apr 2026 to Mar 2027
+  const [templateStartMonth, setTemplateStartMonth] = useState(4);
+  const [templateStartYear, setTemplateStartYear] = useState(2026);
+  const [templateEndMonth, setTemplateEndMonth] = useState(3);
+  const [templateEndYear, setTemplateEndYear] = useState(2027);
 
   const reloadCategories = async () => {
     try { setCategories(await (await fetch('/api/categories')).json()); } catch { toast.error('Failed to load categories'); }
@@ -446,37 +453,117 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                 Download Excel Template
               </CardTitle>
               <CardDescription className="text-[11px]">
-                Download the pre-formatted template. Fill in your data and import it back — new projects, receipts, and expenses will be auto-created.
+                Choose any custom date range for your template. The Excel columns will be generated for the exact months you select — e.g., June 2026 to May 2027, April 2026 to March 2027, or any range you need.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = '/api/settings/download-template?startYear=2026';
-                    a.download = 'ECI-CashFlow-Template-FY2026.xlsx';
-                    a.click();
-                  }}
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" /> FY 2026-27 Template
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
-                  onClick={() => {
-                    const a = document.createElement('a');
-                    a.href = '/api/settings/download-template?startYear=2025';
-                    a.download = 'ECI-CashFlow-Template-FY2025.xlsx';
-                    a.click();
-                  }}
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" /> FY 2025-26 Template
-                </Button>
+              <div className="space-y-3">
+                {/* Date range selector */}
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <Label className="text-[11px] font-medium text-emerald-800">Start Month</Label>
+                    <select
+                      value={templateStartMonth}
+                      onChange={e => setTemplateStartMonth(parseInt(e.target.value))}
+                      className="h-8 text-xs border border-emerald-300 rounded-md px-2 bg-white"
+                    >
+                      {MONTH_NAMES.map((m, i) => (
+                        <option key={i} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-medium text-emerald-800">Start Year</Label>
+                    <select
+                      value={templateStartYear}
+                      onChange={e => setTemplateStartYear(parseInt(e.target.value))}
+                      className="h-8 text-xs border border-emerald-300 rounded-md px-2 bg-white"
+                    >
+                      {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-muted-foreground text-sm pb-1">→</span>
+                  <div>
+                    <Label className="text-[11px] font-medium text-emerald-800">End Month</Label>
+                    <select
+                      value={templateEndMonth}
+                      onChange={e => setTemplateEndMonth(parseInt(e.target.value))}
+                      className="h-8 text-xs border border-emerald-300 rounded-md px-2 bg-white"
+                    >
+                      {MONTH_NAMES.map((m, i) => (
+                        <option key={i} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] font-medium text-emerald-800">End Year</Label>
+                    <select
+                      value={templateEndYear}
+                      onChange={e => setTemplateEndYear(parseInt(e.target.value))}
+                      className="h-8 text-xs border border-emerald-300 rounded-md px-2 bg-white"
+                    >
+                      {[2025, 2026, 2027, 2028, 2029, 2030, 2031].map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-100 bg-emerald-50"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = `/api/settings/download-template?startMonth=${templateStartMonth}&startYear=${templateStartYear}&endMonth=${templateEndMonth}&endYear=${templateEndYear}`;
+                      a.download = `ECI-CashFlow-Template-${MONTH_NAMES[templateStartMonth - 1]}${templateStartYear}-${MONTH_NAMES[templateEndMonth - 1]}${templateEndYear}.xlsx`;
+                      a.click();
+                      toast.success(`Template downloaded for ${MONTH_NAMES[templateStartMonth - 1]} ${templateStartYear} - ${MONTH_NAMES[templateEndMonth - 1]} ${templateEndYear}`);
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download Template
+                  </Button>
+                </div>
+
+                {/* Quick presets */}
+                <div className="flex flex-wrap gap-1.5">
+                  <p className="text-[10px] text-emerald-600 font-medium self-center mr-1">Quick:</p>
+                  {[
+                    { label: 'FY 2026-27', sm: 4, sy: 2026, em: 3, ey: 2027 },
+                    { label: 'FY 2025-26', sm: 4, sy: 2025, em: 3, ey: 2026 },
+                    { label: 'Jun 26 - May 27', sm: 6, sy: 2026, em: 5, ey: 2027 },
+                    { label: 'Calendar 2026', sm: 1, sy: 2026, em: 12, ey: 2026 },
+                    { label: 'Calendar 2027', sm: 1, sy: 2027, em: 12, ey: 2027 },
+                  ].map(p => (
+                    <Button
+                      key={p.label}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] px-2 text-emerald-700 hover:bg-emerald-100"
+                      onClick={() => {
+                        setTemplateStartMonth(p.sm);
+                        setTemplateStartYear(p.sy);
+                        setTemplateEndMonth(p.em);
+                        setTemplateEndYear(p.ey);
+                      }}
+                    >
+                      {p.label}
+                    </Button>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-emerald-600">
+                  Selected range: <span className="font-semibold">{MONTH_NAMES[templateStartMonth - 1]} {templateStartYear}</span> to <span className="font-semibold">{MONTH_NAMES[templateEndMonth - 1]} {templateEndYear}</span> ({(() => {
+                    let count = 0;
+                    let m = templateStartMonth; let y = templateStartYear;
+                    while (count < 36) {
+                      count++;
+                      if (m === templateEndMonth && y === templateEndYear) break;
+                      m++; if (m > 12) { m = 1; y++; }
+                    }
+                    return count;
+                  })()} months)
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -541,7 +628,7 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       <p className="text-sm font-semibold text-emerald-800">Import Successful!</p>
                     </div>
-                    <p className="text-[11px] text-emerald-700">Financial Year: {importResult.financialYear}</p>
+                    <p className="text-[11px] text-emerald-700">Period: {importResult.financialYear} ({importResult.periodMonths || 12} months)</p>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2">
                       {[
                         { label: 'Bank Accounts', value: importResult.bankAccounts },
@@ -577,24 +664,24 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                     <div className="space-y-4">
                       {/* Structure overview */}
                       <div>
-                        <p className="text-[11px] font-semibold mb-1.5">Sheet Structure</p>
+                        <p className="text-[11px] font-semibold mb-1.5">Sheet Structure (Flexible Range)</p>
                         <div className="overflow-x-auto custom-scrollbar rounded-md ring-1 ring-border">
                           <table className="w-full text-[10px] border-collapse">
                             <thead>
                               <tr className="bg-muted/60">
                                 <th className="text-left p-1.5 font-semibold w-16">Row</th>
-                                <th className="text-left p-1.5 font-semibold">Column A-B</th>
+                                <th className="text-left p-1.5 font-semibold">Column A</th>
                                 <th className="text-left p-1.5 font-semibold">Column C</th>
-                                <th className="text-left p-1.5 font-semibold">Columns D-O</th>
-                                <th className="text-left p-1.5 font-semibold">Column P</th>
+                                <th className="text-left p-1.5 font-semibold">Month Columns</th>
+                                <th className="text-left p-1.5 font-semibold">Last Column</th>
                               </tr>
                             </thead>
                             <tbody>
                               <tr className="border-b"><td className="p-1.5 font-mono">1</td><td className="p-1.5">Title</td><td className="p-1.5 font-medium">"ECI - Cash Flow Statement"</td><td className="p-1.5">—</td><td className="p-1.5">—</td></tr>
-                              <tr className="border-b"><td className="p-1.5 font-mono">2</td><td className="p-1.5">Period</td><td className="p-1.5 font-medium">"April, 2026 - March, 2027"</td><td className="p-1.5">—</td><td className="p-1.5">—</td></tr>
-                              <tr className="border-b bg-blue-50/40"><td className="p-1.5 font-mono">6-8</td><td className="p-1.5">Bank</td><td className="p-1.5 font-medium">"Bank Name # Account# (Branch)"</td><td className="p-1.5">—</td><td className="p-1.5">Balance in Col O</td></tr>
-                              <tr className="border-b bg-emerald-50/40"><td className="p-1.5 font-mono">13-36</td><td className="p-1.5">Receipts</td><td className="p-1.5 font-medium">Client / Project name</td><td className="p-1.5">Monthly amounts (Apr→Mar)</td><td className="p-1.5">Remarks</td></tr>
-                              <tr className="border-b bg-red-50/40"><td className="p-1.5 font-mono">42-79</td><td className="p-1.5">Expenses</td><td className="p-1.5 font-medium">Expense category name</td><td className="p-1.5">Monthly amounts (Apr→Mar)</td><td className="p-1.5">Remarks</td></tr>
+                              <tr className="border-b"><td className="p-1.5 font-mono">2</td><td className="p-1.5">Period</td><td className="p-1.5 font-medium">"June, 2026 - May, 2027" (any range)</td><td className="p-1.5">—</td><td className="p-1.5">—</td></tr>
+                              <tr className="border-b bg-blue-50/40"><td className="p-1.5 font-mono">4-6</td><td className="p-1.5">Bank</td><td className="p-1.5 font-medium">"Bank Name # Account# (Branch)"</td><td className="p-1.5">—</td><td className="p-1.5">Current Balance</td></tr>
+                              <tr className="border-b bg-emerald-50/40"><td className="p-1.5 font-mono">Varies</td><td className="p-1.5">Receipts</td><td className="p-1.5 font-medium">Client / Project name</td><td className="p-1.5">Monthly amounts (auto-detected from header)</td><td className="p-1.5">Remarks</td></tr>
+                              <tr className="border-b bg-red-50/40"><td className="p-1.5 font-mono">Varies</td><td className="p-1.5">Expenses</td><td className="p-1.5 font-medium">Expense category name</td><td className="p-1.5">Monthly amounts (auto-detected from header)</td><td className="p-1.5">Remarks</td></tr>
                             </tbody>
                           </table>
                         </div>
@@ -623,13 +710,14 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                       <div>
                         <p className="text-[11px] font-semibold mb-1.5">Tips</p>
                         <ul className="text-[10px] text-muted-foreground space-y-1 list-disc pl-4">
+                          <li>The period in Row 2 can be ANY custom range — e.g., &quot;June, 2026 - May, 2027&quot; or &quot;April, 2026 - March, 2027&quot;</li>
+                          <li>Month columns are auto-detected from the header row — they match the period you specify</li>
                           <li>Add a new row in the receipts section to auto-create a new project/client</li>
                           <li>Add a new row in the expenses section to auto-create a new expense category</li>
                           <li>Operational expenses are auto-detected (Electricity, Salaries, Rent, etc.)</li>
                           <li>Use &quot;-&quot; or leave blank for zero-amount months</li>
                           <li>Bank format: &quot;Bank Name # AccountNumber (Branch)&quot;</li>
                           <li>All amounts are rounded to whole numbers (no decimals)</li>
-                          <li>Column O (Mar) also holds bank balance for bank account rows</li>
                         </ul>
                       </div>
                     </div>
