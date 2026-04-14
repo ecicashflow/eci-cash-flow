@@ -448,6 +448,142 @@ export default function DashboardView({ data }: DashboardViewProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ───── Cash Flow Trend Analysis ───── */}
+      <CashFlowTrends monthlyData={monthlyData} currentBalance={currentBalance} />
+    </div>
+  );
+}
+
+function CashFlowTrends({ monthlyData, currentBalance }: { monthlyData: any[]; currentBalance: number }) {
+  const len = monthlyData.length;
+
+  // Compute 3-month receipt trend
+  const last3Receipts = monthlyData.slice(-3);
+  const prev3Receipts = monthlyData.slice(-6, -3);
+  const avgLast3Receipts = last3Receipts.length > 0 ? last3Receipts.reduce((s, m) => s + m.totalReceipts, 0) / last3Receipts.length : 0;
+  const avgPrev3Receipts = prev3Receipts.length > 0 ? prev3Receipts.reduce((s, m) => s + m.totalReceipts, 0) / prev3Receipts.length : 0;
+  const receiptTrendPct = avgPrev3Receipts !== 0 ? ((avgLast3Receipts - avgPrev3Receipts) / avgPrev3Receipts) * 100 : 0;
+
+  // Compute 3-month expense trend
+  const avgLast3Expenses = last3Receipts.length > 0 ? last3Receipts.reduce((s, m) => s + m.totalExpenses, 0) / last3Receipts.length : 0;
+  const avgPrev3Expenses = prev3Receipts.length > 0 ? prev3Receipts.reduce((s, m) => s + m.totalExpenses, 0) / prev3Receipts.length : 0;
+  const expenseTrendPct = avgPrev3Expenses !== 0 ? ((avgLast3Expenses - avgPrev3Expenses) / avgPrev3Expenses) * 100 : 0;
+
+  // Cash burn rate & runway
+  const totalExpenses = monthlyData.reduce((s, m) => s + m.totalExpenses, 0);
+  const avgMonthlyBurn = len > 0 ? totalExpenses / len : 0;
+  const monthlyNetFlows = monthlyData.map(m => m.netCashFlow);
+  const avgMonthlyNet = len > 0 ? monthlyNetFlows.reduce((s, v) => s + v, 0) / len : 0;
+  const monthsRunway = avgMonthlyNet < 0 && currentBalance > 0 ? Math.floor(currentBalance / Math.abs(avgMonthlyNet)) : avgMonthlyNet >= 0 ? Infinity : 0;
+
+  if (len < 2) return null;
+
+  const trends = [
+    {
+      title: '3-Month Receipt Trend',
+      value: avgLast3Receipts,
+      trend: receiptTrendPct,
+      positive: receiptTrendPct >= 0,
+      subtitle: `Avg: ${formatPKRFull(avgLast3Receipts)}/mo`,
+      tooltip: 'Compares average receipts of last 3 months vs previous 3 months',
+      accent: receiptTrendPct >= 0 ? 'green' as const : 'red' as const,
+    },
+    {
+      title: '3-Month Expense Trend',
+      value: avgLast3Expenses,
+      trend: expenseTrendPct,
+      positive: expenseTrendPct <= 0, // lower expenses = good
+      subtitle: `Avg: ${formatPKRFull(avgLast3Expenses)}/mo`,
+      tooltip: 'Compares average expenses of last 3 months vs previous 3 months (lower is better)',
+      accent: expenseTrendPct <= 0 ? 'green' as const : 'amber' as const,
+    },
+    {
+      title: 'Cash Burn Rate',
+      value: avgMonthlyBurn,
+      trend: null,
+      positive: avgMonthlyNet >= 0,
+      subtitle: avgMonthlyNet >= 0
+        ? `Net positive — no runway concern`
+        : `~${monthsRunway} month${monthsRunway !== 1 ? 's' : ''} of runway remaining`,
+      tooltip: 'Average monthly expenses and estimated runway at current burn rate',
+      accent: avgMonthlyNet >= 0 ? 'green' as const : 'red' as const,
+    },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-200/60 shadow-sm shadow-indigo-200/50">
+          <TrendingUp className="w-4 h-4 text-indigo-600" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-slate-800 tracking-tight">Cash Flow Trends</h3>
+          <p className="text-[11px] text-slate-400 font-medium mt-0.5">Period-over-period comparison based on selected range</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {trends.map((t, i) => {
+          const isNeg = t.value < 0;
+          const palette = {
+            green: {
+              gradient: 'bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/40',
+              ring: 'ring-emerald-200/70',
+              icon: 'bg-gradient-to-br from-emerald-100 to-emerald-200/60 text-emerald-600 shadow-sm shadow-emerald-200/50',
+            },
+            red: {
+              gradient: 'bg-gradient-to-br from-red-50/90 via-white to-red-50/40',
+              ring: 'ring-red-200/70',
+              icon: 'bg-gradient-to-br from-red-100 to-red-200/60 text-red-600 shadow-sm shadow-red-200/50',
+            },
+            amber: {
+              gradient: 'bg-gradient-to-br from-amber-50/90 via-white to-amber-50/40',
+              ring: 'ring-amber-200/70',
+              icon: 'bg-gradient-to-br from-amber-100 to-amber-200/60 text-amber-600 shadow-sm shadow-amber-200/50',
+            },
+          }[t.accent];
+          return (
+            <TooltipProvider key={i}>
+              <Card className={`ring-1 ${palette.ring} ${palette.gradient} border-0 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5`}>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 truncate">
+                        {t.title}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="w-3 h-3 inline ml-1 text-slate-400 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs max-w-[220px]">{t.tooltip}</TooltipContent>
+                        </Tooltip>
+                      </p>
+                    </div>
+                    <div className={`p-2.5 rounded-xl ${palette.icon}`}>
+                      {t.positive ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                    </div>
+                  </div>
+                  <p className={`text-[1.3rem] font-extrabold tracking-tight leading-tight ${isNeg ? 'text-red-700' : t.accent === 'green' ? 'text-emerald-700' : t.accent === 'red' ? 'text-red-700' : 'text-amber-700'}`}>
+                    {formatPKRFull(t.value)}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    {t.trend !== null && (
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${t.positive ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {t.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {t.trend >= 0 ? '+' : ''}{t.trend.toFixed(1)}%
+                      </span>
+                    )}
+                    <p className="text-[10px] text-slate-400 font-medium">{t.subtitle}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TooltipProvider>
+          );
+        })}
+      </div>
     </div>
   );
 }

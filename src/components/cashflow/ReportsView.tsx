@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, FileText, FileSpreadsheet, Printer } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, Printer, FileDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,8 @@ export default function ReportsView({ data }: ReportsViewProps) {
   const handleExportCSV = async (type: string) => {
     setExporting(true);
     try {
-      const res = await fetch(`/api/reports/export?type=${type}&format=csv&year=2026`);
+      const fyYear = data?.fyYear || new Date().getFullYear();
+      const res = await fetch(`/api/reports/export?type=${type}&format=csv&year=${fyYear}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -28,6 +29,26 @@ export default function ReportsView({ data }: ReportsViewProps) {
       URL.revokeObjectURL(url);
     } catch {
       console.error('Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    try {
+      const fyYear = data?.fyYear || new Date().getFullYear();
+      const res = await fetch(`/api/reports/export?type=all&format=pdf&year=${fyYear}`);
+      const html = await res.text();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cash-flow-report-${new Date().toISOString().split('T')[0]}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      console.error('PDF export failed');
     } finally {
       setExporting(false);
     }
@@ -59,6 +80,9 @@ export default function ReportsView({ data }: ReportsViewProps) {
               <Button variant="outline" size="sm" onClick={() => handleExportCSV('expenses')} disabled={exporting} className="gap-1.5 rounded-lg shadow-sm font-medium">
                 <Download className="w-4 h-4" /> Expenses (CSV)
               </Button>
+              <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={exporting} className="gap-1.5 rounded-lg shadow-sm font-medium">
+                <FileDown className="w-4 h-4" /> PDF Report
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5 rounded-lg shadow-sm font-medium">
                 <Printer className="w-4 h-4" /> Print
               </Button>
@@ -71,7 +95,7 @@ export default function ReportsView({ data }: ReportsViewProps) {
       <Card className="shadow-md border-slate-200/60">
         <CardHeader className="px-6 pt-5 pb-2">
           <CardTitle className="text-base font-bold text-slate-800 tracking-tight">{data?.settings?.app_name || data?.settings?.company_name || 'ECI'} - Cash Flow Statement</CardTitle>
-          <CardDescription className="text-[11px] text-slate-400 font-medium mt-0.5">April 2026 - March 2027 | Monthly Forecast Report</CardDescription>
+          <CardDescription className="text-[11px] text-slate-400 font-medium mt-0.5">{data?.rangeLabel || 'Monthly Forecast Report'} | Monthly Forecast Report</CardDescription>
         </CardHeader>
         <CardContent className="px-6 pb-5">
           <div className="overflow-x-auto custom-scrollbar rounded-xl ring-1 ring-slate-200/70">
@@ -109,7 +133,7 @@ export default function ReportsView({ data }: ReportsViewProps) {
                         {formatPKR(m.openingBalance)}
                       </td>
                       <td className="text-right p-3 text-emerald-700 font-mono tabular-nums">
-                        {formatPKR(m.totalReceipts - (m.totalReceipts * 0.1))}
+                        {formatPKR(m.totalReceipts - (m.totalReceipts * (data?.settings?.profit_margin_pct ? parseFloat(data.settings.profit_margin_pct) / 100 : 0)))}
                       </td>
                       <td className="text-right p-3 font-bold text-emerald-700 font-mono tabular-nums">
                         {formatPKR(m.totalReceipts)}

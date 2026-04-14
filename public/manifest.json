@@ -1,0 +1,21 @@
+{
+  "name": "ECI Cash Flow",
+  "short_name": "CashFlow",
+  "description": "Professional cash flow forecasting and management system",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b3f8f",
+  "icons": [
+    {
+      "src": "/eci-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/eci-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

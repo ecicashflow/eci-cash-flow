@@ -14,6 +14,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/comp
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from '@/components/ui/sheet';
 import { Calendar } from '@/components/ui/calendar';
 import DashboardView from '@/components/cashflow/DashboardView';
 import BankAccountsView from '@/components/cashflow/BankAccountsView';
@@ -102,6 +103,8 @@ export default function Home() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const [darkMode, setDarkMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   // Date range state - default to FY 2026-27 (Apr 2026 to Mar 2027)
   const [startDate, setStartDate] = useState<Date>(new Date(2026, 3, 1)); // Apr 1, 2026
@@ -164,6 +167,20 @@ export default function Home() {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark') setDarkMode(true);
   }, []);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  // Close mobile sheet when tab changes
+  useEffect(() => {
+    setMobileSheetOpen(false);
+  }, [activeTab]);
 
   const deficitCount = dashboardData?.warnings?.negativeMonths?.length || 0;
   const companyName = dashboardData?.settings?.company_name || 'ECI';
@@ -316,10 +333,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* ───── Premium Sidebar ───── */}
+      {/* ───── Premium Sidebar (Desktop) ───── */}
       <TooltipProvider delayDuration={0}>
         <aside
-          className={`${sidebarOpen ? 'w-[260px]' : 'w-[72px]'} transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col fixed h-full z-30`}
+          className={`${sidebarOpen ? 'w-[260px]' : 'w-[72px]'} ${isMobile ? 'hidden' : ''} transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col fixed h-full z-30`}
           style={{
             background: 'linear-gradient(180deg, oklch(0.19 0.058 265) 0%, oklch(0.12 0.055 265) 60%, oklch(0.10 0.05 265) 100%)',
             boxShadow: '3px 0 24px -4px oklch(0.10 0.05 265 / 0.6), 1px 0 8px -2px oklch(0 0 0 / 0.15)',
@@ -494,11 +511,96 @@ export default function Home() {
       </TooltipProvider>
 
       {/* ───── Main Content ───── */}
-      <main className={`flex-1 ${sidebarOpen ? 'ml-[260px]' : 'ml-[72px]'} transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col min-h-screen`}>
+      <main className={`flex-1 ${isMobile ? 'ml-0' : sidebarOpen ? 'ml-[260px]' : 'ml-[72px]'} transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col min-h-screen`}>
         {/* Header */}
         <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border/60" style={{ boxShadow: '0 1px 8px -2px oklch(0.14 0.06 265 / 0.06)' }}>
-          <div className="flex items-center justify-between px-6 py-3">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between px-4 md:px-6 py-3">
+            <div className="flex items-center gap-3 md:gap-4">
+              {/* Mobile hamburger menu */}
+              {isMobile && (
+                <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
+                      <Menu className="w-4 h-4" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-[280px] p-0 overflow-y-auto" style={{ background: 'linear-gradient(180deg, oklch(0.19 0.058 265) 0%, oklch(0.12 0.055 265) 60%, oklch(0.10 0.05 265) 100%)' }}>
+                    <SheetHeader className="sr-only">
+                      <SheetTitle>Navigation Menu</SheetTitle>
+                    </SheetHeader>
+                    <div className="pt-5">
+                      {/* Mobile Logo */}
+                      <div className="px-4 pb-4 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden relative" style={{ background: 'linear-gradient(135deg, oklch(0.50 0.18 265), oklch(0.35 0.14 250))', boxShadow: '0 4px 12px -2px oklch(0.35 0.14 265 / 0.5)' }}>
+                          <Image src={appLogoUrl} alt={`${appName} Logo`} width={32} height={32} className="w-8 h-8 object-cover rounded-lg" unoptimized />
+                        </div>
+                        <div>
+                          <h1 className="text-[13px] font-bold tracking-tight text-white/95 truncate leading-tight">{appName}</h1>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Sparkles className="w-2.5 h-2.5" style={{ color: 'oklch(0.65 0.16 160)' }} />
+                            <p className="text-[9.5px] text-white/30 font-medium truncate">{companyName} Office</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Mobile Nav */}
+                      <nav className="px-2.5 space-y-0.5">
+                        {NAV_ITEMS.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = activeTab === item.id;
+                          const showSectionLabel = item.sectionLabel;
+                          return (
+                            <React.Fragment key={item.id}>
+                              {showSectionLabel && (
+                                <div className="flex items-center gap-2 px-3 pt-5 pb-1.5 first:pt-2">
+                                  <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/20">{item.sectionLabel}</span>
+                                  <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, oklch(0.30 0.04 265 / 0.4), transparent)' }} />
+                                </div>
+                              )}
+                              <button
+                                onClick={() => { setActiveTab(item.id); setMobileSheetOpen(false); }}
+                                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-200 text-[12.5px] font-medium relative ${
+                                  isActive ? 'text-white' : 'text-white/40 hover:text-white/80'
+                                }`}
+                                style={isActive ? {
+                                  background: 'linear-gradient(135deg, oklch(0.28 0.06 265 / 0.8), oklch(0.22 0.05 265 / 0.6))',
+                                  boxShadow: '0 2px 8px -2px oklch(0.30 0.06 265 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.06)',
+                                } : {}}
+                              >
+                                {isActive && (
+                                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: 'linear-gradient(180deg, oklch(0.70 0.18 265), oklch(0.55 0.16 160))', boxShadow: '0 0 8px oklch(0.65 0.18 265 / 0.5)' }} />
+                                )}
+                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                  isActive ? 'bg-white/[0.12]' : 'bg-transparent'
+                                }`}>
+                                  <Icon className={`w-[15px] h-[15px] flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-white' : 'text-white/35'}`} />
+                                </div>
+                                <span className="truncate">{item.label}</span>
+                                {item.id === 'dashboard' && deficitCount > 0 && (
+                                  <Badge className="ml-auto text-[9px] px-1.5 py-0 h-[17px] min-w-[17px] text-center rounded-md font-semibold border-0" style={{ background: 'oklch(0.55 0.20 20)', color: 'oklch(0.97 0.01 50)' }}>
+                                    {deficitCount}
+                                  </Badge>
+                                )}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                      </nav>
+                      {/* Mobile company info */}
+                      <div className="px-4 pt-5 mt-4" style={{ borderTop: '1px solid oklch(0.40 0.12 265 / 0.2)' }}>
+                        <div className="flex items-center gap-2.5 px-2 py-2 rounded-xl" style={{ background: 'oklch(0.16 0.04 265 / 0.5)' }}>
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, oklch(0.40 0.12 160), oklch(0.30 0.10 250))' }}>
+                            <Building2 className="w-3.5 h-3.5 text-white/90" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10.5px] font-semibold text-white/70 truncate leading-tight">{companyName}</p>
+                            <p className="text-[8.5px] text-white/25 font-medium mt-0.5 truncate">{rangeLabel}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
               <div>
                 <h2 className="text-[15px] font-semibold tracking-tight">{NAV_ITEMS.find(n => n.id === activeTab)?.label}</h2>
                 {dashboardData && (
@@ -514,7 +616,7 @@ export default function Home() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8 text-xs gap-2 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
                     <CalendarRange className="w-3.5 h-3.5 text-primary/70" />
-                    <span className="max-w-[200px] truncate font-medium">{formatDisplayDate(startDate)} — {formatDisplayDate(endDate)}</span>
+                    <span className={`${isMobile ? 'hidden' : ''} max-w-[200px] truncate font-medium`}>{formatDisplayDate(startDate)} — {formatDisplayDate(endDate)}</span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 rounded-xl border-border/60 shadow-xl" align="end">
@@ -607,7 +709,7 @@ export default function Home() {
                 {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-muted-foreground" />}
               </Button>
 
-              <Button variant="outline" size="sm" onClick={fetchDashboard} className="h-8 text-xs gap-1.5 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
+              <Button variant="outline" size="sm" onClick={fetchDashboard} className={`${isMobile ? 'hidden' : ''} h-8 text-xs gap-1.5 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm`}>
                 <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
@@ -616,7 +718,7 @@ export default function Home() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-3 md:p-6">
           {renderContent()}
         </div>
 
