@@ -109,12 +109,16 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoLoading, setAutoLoading] = useState(false);
+  const [aiScenarioCount, setAiScenarioCount] = useState(0);
   const hasAutoLoaded = useRef(false);
 
   // Available months derived from date range
   const startYear = startDate ? new Date(startDate).getFullYear() : 2026;
   const endYear = endDate ? new Date(endDate).getFullYear() : 2027;
   const availableYears = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+
+  // Detect if a scenario was AI-generated
+  const isAIGenerated = (id: string) => id.startsWith('ai-');
 
   const addScenario = useCallback(() => {
     const amount = parseFloat(scenarioAmount);
@@ -172,6 +176,7 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
           adjustment: s.adjustment,
         }));
         setScenarios(newScenarios);
+        setAiScenarioCount(data.summary?.aiGeneratedCount || 0);
         // Auto-calculate impact immediately with these AI-generated scenarios
         const apiScenarios = newScenarios.map(s => ({
           type: s.type === 'increase_receipt' || s.type === 'decrease_expense' ? 'change_amount' : s.type,
@@ -428,7 +433,7 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                  {scenarios.length} Scenario{scenarios.length !== 1 ? 's' : ''} Added
+                  {scenarios.length} Scenario{scenarios.length !== 1 ? 's' : ''} ({aiScenarioCount > 0 ? `${aiScenarioCount} AI + ${scenarios.length - aiScenarioCount} rule-based` : 'auto-generated'})
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium">
                   Total impact: {formatPKR(scenarios.reduce((sum, s) => {
@@ -452,6 +457,11 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] font-semibold text-slate-700">{typeConfig?.label}</span>
+                          {isAIGenerated(s.id) && (
+                            <Badge className="text-[8px] px-1.5 py-0 bg-violet-100/80 text-violet-600 border-violet-200/60 font-medium gap-0.5">
+                              <Sparkles className="w-2.5 h-2.5" /> AI
+                            </Badge>
+                          )}
                           <Badge className="text-[8px] px-1.5 py-0 bg-slate-100/80 text-slate-500 border-slate-200/60 font-medium">
                             {MONTH_NAMES[s.month - 1]} {s.year}
                           </Badge>

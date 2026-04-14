@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+import * as XLSX from 'xlsx';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -9,6 +10,11 @@ export async function GET(req: NextRequest) {
     const type = sp.get('type') || 'all';
     const format = sp.get('format') || 'csv';
     const year = sp.get('year');
+
+    // ─── XLSX Export (landscape) ───
+    if (format === 'xlsx') {
+      return generateXLSXReport(type, year);
+    }
 
     // ─── PDF Export ───
     if (format === 'pdf') {
@@ -54,6 +60,163 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ─── XLSX Report Generator (Landscape Orientation) ───
+async function generateXLSXReport(type: string, year: string | null) {
+  const wb = XLSX.utils.book_new();
+
+  // Fetch settings
+  const settingsArr = await db.setting.findMany();
+  const settingsMap: Record<string, string> = {};
+  for (const s of settingsArr) settingsMap[s.key] = s.value;
+  const companyName = settingsMap.company_name || 'ECI';
+  const appName = settingsMap.app_name || 'ECI Cash Flow';
+
+  // Fetch bank accounts for current balance
+  const bankAccounts = await db.bankAccount.findMany({ where: { active: true } });
+  const currentBalance = bankAccounts.reduce((sum, a) => sum + a.currentBalance, 0);
+
+  const filterYear = year ? parseInt(year) : new Date().getFullYear();
+  const rangeYears = [filterYear, filterYear + 1];
+  const whereClause: any = { year: { in: rangeYears } };
+
+  if (type === 'receipts' || type === 'all') {
+    const receipts = await db.receipt.findMany({ where: whereClause, orderBy: [{ year: 'asc' }, { month: 'asc' }] });
+    const receiptData = receipts.map(r => ({
+      'Date': new Date(r.date).toISOString().split('T')[0],
+      'Month': MONTH_NAMES[r.month - 1],
+      'Year': r.year,
+      'Client/Project': r.clientProject,
+      'Description': r.description,
+      'Amount (PKR)': r.amount,
+      'Status': r.status,
+      'Notes': r.notes,
+    }));
+    const ws = XLSX.utils.json_to_sheet(receiptData);
+
+    // Set landscape orientation and column widths
+    if (!ws['!cols']) ws['!cols'] = [];
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 8 }, { wch: 6 }, { wch: 30 }, { wch: 25 },
+      { wch: 16 }, { wch: 10 }, { wch: 30 },
+    ];
+    ws['!page'] = { orientation: 'landscape' };
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Receipts');
+  }
+
+  if (type === 'expenses' || type === 'all') {
+    const expenses = await db.expense.findMany({ where: whereClause, orderBy: [{ year: 'asc' }, { month: 'asc' }] });
+    const expenseData = expenses.map(e => ({
+      'Date': new Date(e.date).toISOString().split('T')[0],
+      'Month': MONTH_NAMES[e.month - 1],
+      'Year': e.year,
+      'Category': e.category,
+      'Description': e.description,
+      'Amount (PKR)': e.amount,
+      'Project': e.project,
+      'Status': e.status,
+      'Operational': e.isOperational ? 'Yes' : 'No',
+      'Notes': e.notes,
+    }));
+    const ws = XLSX.utils.json_to_sheet(expenseData);
+
+    if (!ws['!cols']) ws['!cols'] = [];
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 8 }, { wch: 6 }, { wch: 28 }, { wch: 25 },
+      { wch: 16 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 30 },
+    ];
+    ws['!page'] = { orientation: 'landscape' };
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+  }
+
+  // Add Cash Flow Summary sheet
+  const [receiptSums, expenseSums, opsSums] = await Promise.all([
+    db.receipt.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: whereClause }),
+    db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: whereClause }),
+    db.expense.groupBy({ by: ['month', 'year'], _sum: { amount: true }, where: { year: { in: rangeYears }, isOperational: true } }),
+  ]);
+
+  const receiptMap = new Map<string, number>();
+  for (const r of receiptSums) receiptMap.set(`${r.month}-${r.year}`, r._sum.amount || 0);
+  const expenseMap = new Map<string, number>();
+  for (const e of expenseSums) expenseMap.set(`${e.month}-${e.year}`, e._sum.amount || 0);
+  const opsMap = new Map<string, number>();
+  for (const e of opsSums) opsMap.set(`${e.month}-${e.year}`, e._sum.amount || 0);
+
+  // Build FY months (Apr -> Mar)
+  const fyMonths = [];
+  for (let i = 0; i < 12; i++) {
+    const m = ((4 + i - 1) % 12) + 1;
+    const y = m >= 4 ? filterYear : filterYear + 1;
+    fyMonths.push({ month: m, year: y });
+  }
+
+  let runningBalance = currentBalance;
+  let totalReceipts = 0;
+  let totalExpenses = 0;
+  const summaryRows: any[] = [];
+
+  for (const { month, year: yr } of fyMonths) {
+    const key = `${month}-${yr}`;
+    const receipts = receiptMap.get(key) || 0;
+    const expenses = expenseMap.get(key) || 0;
+    const ops = opsMap.get(key) || 0;
+    const net = receipts - expenses;
+    const opening = runningBalance;
+    const closing = opening + net;
+
+    totalReceipts += receipts;
+    totalExpenses += expenses;
+
+    summaryRows.push({
+      'Month': `${MONTH_NAMES[month - 1]} ${yr}`,
+      'Opening Balance': Math.round(opening),
+      'Receipts': Math.round(receipts),
+      'Expenses': Math.round(expenses),
+      'Operational Cost': Math.round(ops),
+      'Net Cash Flow': Math.round(net),
+      'Closing Balance': Math.round(closing),
+      'Status': closing < 0 ? 'DEFICIT' : 'OK',
+    });
+
+    runningBalance = closing;
+  }
+
+  const forecastClosing = currentBalance + totalReceipts - totalExpenses;
+
+  // Add totals row
+  summaryRows.push({
+    'Month': 'TOTAL',
+    'Opening Balance': '',
+    'Receipts': Math.round(totalReceipts),
+    'Expenses': Math.round(totalExpenses),
+    'Operational Cost': '',
+    'Net Cash Flow': Math.round(totalReceipts - totalExpenses),
+    'Closing Balance': Math.round(forecastClosing),
+    'Status': '',
+  });
+
+  const summaryWs = XLSX.utils.json_to_sheet(summaryRows);
+  summaryWs['!cols'] = [
+    { wch: 14 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 12 },
+  ];
+  summaryWs['!page'] = { orientation: 'landscape' };
+
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Cash Flow Summary');
+
+  // Generate buffer
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  return new NextResponse(buf, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${companyName.replace(/\s+/g, '-')}-Cash-Flow-FY${filterYear}-${filterYear + 1}-landscape.xlsx"`,
+    },
+  });
+}
+
+// ─── PDF Report Generator (HTML with Landscape CSS) ───
 async function generatePDFReport(year: string | null) {
   // Fetch settings
   const settingsArr = await db.setting.findMany();

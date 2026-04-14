@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Download, FileText, FileSpreadsheet, Printer, FileDown } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, Printer, FileDown, Table2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +54,25 @@ export default function ReportsView({ data }: ReportsViewProps) {
     }
   };
 
+  const handleExportXLSX = async (type: string) => {
+    setExporting(true);
+    try {
+      const fyYear = data?.fyYear || new Date().getFullYear();
+      const res = await fetch(`/api/reports/export?type=${type}&format=xlsx&year=${fyYear}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cash-flow-${type}-FY${fyYear}-landscape.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      console.error('XLSX export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -79,6 +98,9 @@ export default function ReportsView({ data }: ReportsViewProps) {
               </Button>
               <Button variant="outline" size="sm" onClick={() => handleExportCSV('expenses')} disabled={exporting} className="gap-1.5 rounded-lg shadow-sm font-medium">
                 <Download className="w-4 h-4" /> Expenses (CSV)
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleExportXLSX('all')} disabled={exporting} className="gap-1.5 rounded-lg shadow-sm font-medium">
+                <Table2 className="w-4 h-4" /> Excel (Landscape)
               </Button>
               <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={exporting} className="gap-1.5 rounded-lg shadow-sm font-medium">
                 <FileDown className="w-4 h-4" /> PDF Report

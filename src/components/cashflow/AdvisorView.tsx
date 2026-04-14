@@ -135,25 +135,25 @@ export default function AdvisorView({ startDate, endDate, onRefresh }: AdvisorVi
   }
 
   const d = advisorData;
-  // Score is the primary source of truth — derive health status from it
-  const score = typeof d.healthScore === 'number' ? d.healthScore : 0;
-  // Derive health from score: < 40 = CRITICAL, < 70 = WARNING, else HEALTHY
-  let health: string;
+  // Score is the PRIMARY and ONLY source of truth for health status.
+  // We NEVER use the API's overallHealth string — it could be stale or contradictory.
+  const score = typeof d.healthScore === 'number' ? Math.max(0, Math.min(100, Math.round(d.healthScore))) : 0;
+  // Derive health strictly from score thresholds:
+  //   score < 40  →  CRITICAL  (red)
+  //   score < 70  →  WARNING   (amber/orange)
+  //   score >= 70 →  HEALTHY   (green)
+  let health: 'CRITICAL' | 'WARNING' | 'HEALTHY';
   if (score < 40) health = 'CRITICAL';
   else if (score < 70) health = 'WARNING';
   else health = 'HEALTHY';
-  // If API also sends a string status, use it ONLY if score is unavailable
-  if (score === 0 && typeof d.overallHealth === 'string' && d.overallHealth !== 'CRITICAL') {
-    // API disagrees with derived logic — trust the API if it says something other than CRITICAL when score=0
-    // But only if score truly means "no data" not "zero health"
-  }
 
-  const healthConfig: Record<string, { gradient: string; shadow: string; icon: React.ElementType; label: string; sub: string }> = {
+  const healthConfig = {
     CRITICAL: { gradient: 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700', shadow: 'shadow-lg shadow-red-500/20', icon: ShieldAlert, label: 'CRITICAL', sub: 'Immediate action required — cash flow at risk' },
-    WARNING: { gradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600', shadow: 'shadow-lg shadow-amber-500/20', icon: AlertTriangle, label: 'WARNING', sub: 'Attention needed' },
+    WARNING: { gradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600', shadow: 'shadow-lg shadow-amber-500/20', icon: AlertTriangle, label: 'WARNING', sub: 'Attention needed — review cash flow' },
     HEALTHY: { gradient: 'bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700', shadow: 'shadow-lg shadow-emerald-500/20', icon: CheckCircle, label: 'HEALTHY', sub: 'Cash flow is stable' },
-  };
-  const hc = healthConfig[health] || healthConfig.HEALTHY;
+  } as const;
+  // Always derive from score — never fall back to HEALTHY
+  const hc = healthConfig[health];
   const HIcon = hc.icon;
   const cp = d.cashPosition || {};
   const ra = d.receivableAnalysis || {};
