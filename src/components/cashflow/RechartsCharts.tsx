@@ -8,13 +8,58 @@ import {
 import { formatCompact } from '@/lib/format';
 
 interface RechartsChartsProps {
-  type: 'bar' | 'area';
+  type: 'bar' | 'area' | 'comparison';
   data: any[];
   tooltipStyle: React.CSSProperties;
   currencyFormatter: (v: number) => string;
 }
 
 export default function RechartsCharts({ type, data, tooltipStyle, currencyFormatter }: RechartsChartsProps) {
+  if (type === 'comparison') {
+    return (
+      <div className="h-[320px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="originalCompGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#64748b" stopOpacity={1} />
+                <stop offset="100%" stopColor="#64748b" stopOpacity={0.7} />
+              </linearGradient>
+              <linearGradient id="modifiedCompGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#059669" stopOpacity={1} />
+                <stop offset="100%" stopColor="#059669" stopOpacity={0.7} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 6" stroke="var(--border)" vertical={false} opacity={0.5} />
+            <XAxis dataKey="short" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={formatCompact} axisLine={false} tickLine={false} width={55} />
+            <ReTooltip
+              formatter={currencyFormatter}
+              contentStyle={{
+                ...tooltipStyle,
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+                fontSize: 12,
+                fontWeight: 500,
+                padding: '10px 14px',
+              }}
+              cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
+            />
+            <Legend
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{ fontSize: 11, paddingTop: 8, fontWeight: 500 }}
+            />
+            <ReferenceLine y={0} stroke="#e11d48" strokeDasharray="6 3" strokeWidth={1.5} />
+            <Bar dataKey="Original" fill="url(#originalCompGrad)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+            <Bar dataKey="Modified" fill="url(#modifiedCompGrad)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
   if (type === 'bar') {
     return (
       <div className="h-[320px]">

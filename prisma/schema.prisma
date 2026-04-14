@@ -70,3 +70,72 @@ model Setting {
   key   String @unique
   value String @default("")
 }
+
+// ─── NEW MODELS: AI-Powered Features ────────────────────────────
+
+model Budget {
+  id          String   @id @default(cuid())
+  category    String
+  month       Int
+  year        Int
+  budgetedAmt Float
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RecurringExpense {
+  id            String   @id @default(cuid())
+  title         String
+  category      String
+  amount        Float
+  frequency     String   @default("monthly") // monthly, quarterly, yearly
+  isOperational Boolean  @default(false)
+  project       String   @default("")
+  active        Boolean  @default(true)
+  nextDate      DateTime
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  targetType  String   @default("balance") // balance, reserve, savings
+  targetAmount Float
+  currentAmount Float  @default(0)
+  targetDate  DateTime
+  status      String   @default("active") // active, achieved, abandoned
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String
+  clientProject String
+  description   String   @default("")
+  amount        Float
+  dueDate       DateTime
+  status        String   @default("Pending") // Pending, Sent, Paid, Overdue, Cancelled
+  paidDate      DateTime?
+  paidAmount    Float    @default(0)
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CashFlowAlert {
+  id          String   @id @default(cuid())
+  type        String   // critical, warning, info, success
+  title       String
+  message     String
+  severity    Int      @default(0) // 0=info, 1=low, 2=medium, 3=high, 4=critical
+  isRead      Boolean  @default(false)
+  month       Int?
+  year        Int?
+  relatedData String   @default("") // JSON string for additional context
+  createdAt   DateTime @default(now())
+}

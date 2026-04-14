@@ -4,8 +4,9 @@ import React, { useState, useEffect, useCallback, Component } from 'react';
 import Image from 'next/image';
 import {
   LayoutDashboard, Building2, ArrowDownCircle, ArrowUpCircle,
-  FileText, Settings, AlertTriangle,
-  ChevronRight, RefreshCw, Menu, CalendarRange, ChevronLeft, Sparkles
+  FileText, Settings, AlertTriangle, Bell, BellRing,
+  ChevronRight, RefreshCw, Menu, CalendarRange, ChevronLeft, Sparkles,
+  Brain, FlaskConical, Target, FileSpreadsheet, Repeat, Sun, Moon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,13 @@ import ReceiptsView from '@/components/cashflow/ReceiptsView';
 import ExpensesView from '@/components/cashflow/ExpensesView';
 import ReportsView from '@/components/cashflow/ReportsView';
 import SettingsView from '@/components/cashflow/SettingsView';
+import AdvisorView from '@/components/cashflow/AdvisorView';
+import WhatIfView from '@/components/cashflow/WhatIfView';
+import BudgetView from '@/components/cashflow/BudgetView';
+import GoalsView from '@/components/cashflow/GoalsView';
+import InvoicesView from '@/components/cashflow/InvoicesView';
+import RecurringView from '@/components/cashflow/RecurringView';
+import AlertsPanel from '@/components/cashflow/AlertsPanel';
 
 // Error boundary to catch runtime errors in view components
 class ViewErrorBoundary extends Component<{ children: React.ReactNode; onRetry: () => void }, { hasError: boolean; error: any }> {
@@ -57,13 +65,19 @@ class ViewErrorBoundary extends Component<{ children: React.ReactNode; onRetry: 
   }
 }
 
-type TabId = 'dashboard' | 'bank-accounts' | 'receipts' | 'expenses' | 'reports' | 'settings';
+type TabId = 'dashboard' | 'advisor' | 'what-if' | 'bank-accounts' | 'receipts' | 'expenses' | 'invoices' | 'budgets' | 'goals' | 'recurring' | 'reports' | 'settings';
 
 const NAV_ITEMS: { id: TabId; label: string; icon: React.ElementType; section: string; sectionLabel: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'overview', sectionLabel: 'Overview' },
+  { id: 'advisor', label: 'AI Advisor', icon: Brain, section: 'intelligence', sectionLabel: 'Intelligence' },
+  { id: 'what-if', label: 'What-If Analysis', icon: FlaskConical, section: 'intelligence', sectionLabel: '' },
   { id: 'bank-accounts', label: 'Bank Accounts', icon: Building2, section: 'data', sectionLabel: 'Data Management' },
   { id: 'receipts', label: 'Receipts', icon: ArrowDownCircle, section: 'data', sectionLabel: '' },
   { id: 'expenses', label: 'Expenses', icon: ArrowUpCircle, section: 'data', sectionLabel: '' },
+  { id: 'invoices', label: 'Invoices', icon: FileSpreadsheet, section: 'data', sectionLabel: '' },
+  { id: 'budgets', label: 'Budgets', icon: Target, section: 'planning', sectionLabel: 'Planning' },
+  { id: 'goals', label: 'Goals', icon: Target, section: 'planning', sectionLabel: '' },
+  { id: 'recurring', label: 'Recurring', icon: Repeat, section: 'planning', sectionLabel: '' },
   { id: 'reports', label: 'Reports', icon: FileText, section: 'output', sectionLabel: 'Output' },
   { id: 'settings', label: 'Settings', icon: Settings, section: 'config', sectionLabel: 'Configuration' },
 ];
@@ -85,6 +99,9 @@ export default function Home() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [appName, setAppName] = useState('ECI Cash Flow');
   const [appLogoUrl, setAppLogoUrl] = useState('/eci-logo.png');
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+  const [darkMode, setDarkMode] = useState(false);
 
   // Date range state - default to FY 2026-27 (Apr 2026 to Mar 2027)
   const [startDate, setStartDate] = useState<Date>(new Date(2026, 3, 1)); // Apr 1, 2026
@@ -122,6 +139,31 @@ export default function Home() {
   }, [startDate, endDate]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+  // Fetch alert count
+  useEffect(() => {
+    const fetchAlertCount = async () => {
+      try {
+        const res = await fetch('/api/alerts?unread=true&limit=1');
+        const data = await res.json();
+        setAlertCount(data.unreadCount || 0);
+      } catch {}
+    };
+    fetchAlertCount();
+    const interval = setInterval(fetchAlertCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Dark mode toggle
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark') setDarkMode(true);
+  }, []);
 
   const deficitCount = dashboardData?.warnings?.negativeMonths?.length || 0;
   const companyName = dashboardData?.settings?.company_name || 'ECI';
@@ -235,6 +277,12 @@ export default function Home() {
         {activeTab === 'dashboard' && (
           <DashboardView data={dashboardData} onRefresh={fetchDashboard} />
         )}
+        {activeTab === 'advisor' && (
+          <AdvisorView data={dashboardData} startDate={formatDateStr(startDate)} endDate={formatDateStr(endDate)} onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'what-if' && (
+          <WhatIfView data={dashboardData} startDate={formatDateStr(startDate)} endDate={formatDateStr(endDate)} />
+        )}
         {activeTab === 'bank-accounts' && (
           <BankAccountsView onRefresh={fetchDashboard} />
         )}
@@ -243,6 +291,18 @@ export default function Home() {
         )}
         {activeTab === 'expenses' && (
           <ExpensesView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'invoices' && (
+          <InvoicesView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'budgets' && (
+          <BudgetView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'goals' && (
+          <GoalsView onRefresh={fetchDashboard} />
+        )}
+        {activeTab === 'recurring' && (
+          <RecurringView onRefresh={fetchDashboard} />
         )}
         {activeTab === 'reports' && (
           <ReportsView data={dashboardData} />
@@ -532,6 +592,21 @@ export default function Home() {
                   {deficitCount} deficit
                 </Badge>
               )}
+              {/* Notifications Bell */}
+              <Button variant="outline" size="sm" onClick={() => setAlertsOpen(true)} className="h-8 w-8 p-0 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm relative">
+                {alertCount > 0 ? <BellRing className="w-3.5 h-3.5 text-amber-500" /> : <Bell className="w-3.5 h-3.5 text-muted-foreground" />}
+                {alertCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center shadow-sm">
+                    {alertCount > 9 ? '9+' : alertCount}
+                  </span>
+                )}
+              </Button>
+
+              {/* Dark Mode Toggle */}
+              <Button variant="outline" size="sm" onClick={() => setDarkMode(!darkMode)} className="h-8 w-8 p-0 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
+                {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-muted-foreground" />}
+              </Button>
+
               <Button variant="outline" size="sm" onClick={fetchDashboard} className="h-8 text-xs gap-1.5 rounded-lg border-border/80 hover:border-primary/30 hover:bg-primary/[0.04] transition-all duration-200 shadow-sm">
                 <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
@@ -552,6 +627,9 @@ export default function Home() {
           </p>
         </footer>
       </main>
+
+      {/* Alerts Side Panel */}
+      <AlertsPanel isOpen={alertsOpen} onClose={() => setAlertsOpen(false)} />
     </div>
   );
 }
