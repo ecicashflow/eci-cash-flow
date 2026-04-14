@@ -53,10 +53,18 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
   const [templateEndYear, setTemplateEndYear] = useState(2027);
 
   const reloadCategories = async () => {
-    try { setCategories(await (await fetch('/api/categories')).json()); } catch { toast.error('Failed to load categories'); }
+    try {
+      const res = await fetch('/api/categories');
+      if (!res.ok) return;
+      setCategories(await res.json());
+    } catch { toast.error('Failed to load categories'); }
   };
   const reloadProjects = async () => {
-    try { setProjects(await (await fetch('/api/projects')).json()); } catch { toast.error('Failed to load projects'); }
+    try {
+      const res = await fetch('/api/projects');
+      if (!res.ok) return;
+      setProjects(await res.json());
+    } catch { toast.error('Failed to load projects'); }
   };
 
   useEffect(() => {
@@ -65,6 +73,10 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
         const [catRes, projRes, setRes] = await Promise.all([
           fetch('/api/categories'), fetch('/api/projects'), fetch('/api/settings'),
         ]);
+        if (!catRes.ok || !projRes.ok || !setRes.ok) {
+          toast.error('Failed to load settings');
+          return;
+        }
         setCategories(await catRes.json());
         setProjects(await projRes.json());
         const setData = await setRes.json();

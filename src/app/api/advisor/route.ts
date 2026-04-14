@@ -197,11 +197,16 @@ export async function GET(req: NextRequest) {
       const actual = actualByCategory.get(cat) || 0;
       const variance = rnd(budgeted - actual);
       const variancePct = budgeted > 0 ? rnd((variance / budgeted) * 100) : 0;
-      const status = variancePct <= -10 ? 'overspent' : variancePct <= 0 ? 'caution' : 'on-track';
+      const status = budgeted === 0 && actual > 0 ? 'unbudgeted' : variancePct <= -10 ? 'overspent' : variancePct < 0 ? 'caution' : 'on-track';
       budgetStatuses.push({ category: cat, budgeted, actual, variance, variancePct, status });
     }
     const overspentCount = budgetStatuses.filter(b => b.status === 'overspent').length;
     healthScore -= overspentCount * 5;
+
+    // Calculate budget adherence early (needed for keyMetrics sent to LLM)
+    const totalBudgeted = rnd(Array.from(budgetsByCategory.values()).reduce((s, v) => s + v, 0));
+    const totalActual = rnd(Array.from(actualByCategory.values()).reduce((s, v) => s + v, 0));
+    budgetAdherencePct = totalBudgeted > 0 ? rnd((totalBudgeted / Math.max(totalBudgeted, totalActual)) * 100) : 100;
 
     // Invoice overdue penalty
     const overdueInvoices = allInvoices.filter(inv => inv.status === 'Overdue');
@@ -423,12 +428,9 @@ CRITICAL RULES:
     };
 
     // ─── (f) Budget Adherence ─────────────────────────────────────────────────
-    // (already computed budgetStatuses above, compute overall)
+    // (budgetStatuses, totalBudgeted, totalActual, budgetAdherencePct already computed above)
     const onTrackBudgets = budgetStatuses.filter(b => b.status === 'on-track');
     const overspentBudgets = budgetStatuses.filter(b => b.status === 'overspent');
-    const totalBudgeted = rnd(Array.from(budgetsByCategory.values()).reduce((s, v) => s + v, 0));
-    const totalActual = rnd(Array.from(actualByCategory.values()).reduce((s, v) => s + v, 0));
-    budgetAdherencePct = totalBudgeted > 0 ? rnd((totalBudgeted / Math.max(totalBudgeted, totalActual)) * 100) : 100;
     const mostOverspent = [...budgetStatuses].sort((a, b) => a.variancePct - b.variancePct)[0] || null;
     const mostUnderSpent = [...budgetStatuses].sort((a, b) => b.variancePct - a.variancePct)[0] || null;
 

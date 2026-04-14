@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
       const targetMonth = firstDeficit || rangeMonths[0];
       ruleBasedScenarios.push({
         id: `auto-${idx++}`,
-        type: 'decrease_expense',
+        type: 'change_amount',
         label: 'Reduce Operational Costs by 15%',
         month: targetMonth.month,
         year: targetMonth.year,

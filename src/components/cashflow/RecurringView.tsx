@@ -112,6 +112,14 @@ export default function RecurringView({ onRefresh }: { onRefresh: () => void }) 
 
   const handleSave = async () => {
     if (!validate()) return;
+    // Prevent __custom__ sentinel from leaking to API
+    if (form.category === '__custom__') {
+      form.category = '';
+    }
+    if (!form.category.trim()) {
+      setErrors(prev => ({ ...prev, category: 'Please select or enter a category' }));
+      return;
+    }
     setSaving(true);
     try {
       const url = editing ? `/api/recurring/${editing.id}` : '/api/recurring';

@@ -107,6 +107,8 @@ export async function POST(req: NextRequest) {
           const nextKey = `${nextMonth.month}-${nextMonth.year}`;
           expenseMods.set(nextKey, (expenseMods.get(nextKey) || 0) + (scenario.amount || 0));
         }
+      } else if (scenario.type === 'decrease_expense') {
+        expenseMods.set(key, (expenseMods.get(key) || 0) - (scenario.amount || 0));
       } else if (scenario.type === 'change_amount') {
         // Generic adjustment
         if (scenario.adjustment === 'increase_receipt') {

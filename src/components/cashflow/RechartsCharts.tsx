@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
   ResponsiveContainer, ReferenceLine, Area, AreaChart,
@@ -15,17 +15,24 @@ interface RechartsChartsProps {
 }
 
 export default function RechartsCharts({ type, data, tooltipStyle, currencyFormatter }: RechartsChartsProps) {
+  const id = useId();
+  const originalCompGradId = `${id}-orig`;
+  const modifiedCompGradId = `${id}-mod`;
+  const receiptsGradId = `${id}-rec`;
+  const expensesGradId = `${id}-exp`;
+  const balGradId = `${id}-bal`;
+
   if (type === 'comparison') {
     return (
       <div className="h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="originalCompGrad" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={originalCompGradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#64748b" stopOpacity={1} />
                 <stop offset="100%" stopColor="#64748b" stopOpacity={0.7} />
               </linearGradient>
-              <linearGradient id="modifiedCompGrad" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={modifiedCompGradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#059669" stopOpacity={1} />
                 <stop offset="100%" stopColor="#059669" stopOpacity={0.7} />
               </linearGradient>
@@ -52,8 +59,8 @@ export default function RechartsCharts({ type, data, tooltipStyle, currencyForma
               wrapperStyle={{ fontSize: 11, paddingTop: 8, fontWeight: 500 }}
             />
             <ReferenceLine y={0} stroke="#e11d48" strokeDasharray="6 3" strokeWidth={1.5} />
-            <Bar dataKey="Original" fill="url(#originalCompGrad)" radius={[4, 4, 0, 0]} maxBarSize={24} />
-            <Bar dataKey="Modified" fill="url(#modifiedCompGrad)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+            <Bar dataKey="Original" fill={`url(#${originalCompGradId})`} radius={[4, 4, 0, 0]} maxBarSize={24} />
+            <Bar dataKey="Modified" fill={`url(#${modifiedCompGradId})`} radius={[4, 4, 0, 0]} maxBarSize={24} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -66,11 +73,11 @@ export default function RechartsCharts({ type, data, tooltipStyle, currencyForma
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="receiptsGrad" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={receiptsGradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#059669" stopOpacity={1} />
                 <stop offset="100%" stopColor="#059669" stopOpacity={0.75} />
               </linearGradient>
-              <linearGradient id="expensesGrad" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={expensesGradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#e11d48" stopOpacity={1} />
                 <stop offset="100%" stopColor="#e11d48" stopOpacity={0.75} />
               </linearGradient>
@@ -97,8 +104,8 @@ export default function RechartsCharts({ type, data, tooltipStyle, currencyForma
               wrapperStyle={{ fontSize: 11, paddingTop: 8, fontWeight: 500 }}
             />
             <ReferenceLine y={0} stroke="var(--muted-foreground)" opacity={0.4} />
-            <Bar dataKey="Receipts" fill="url(#receiptsGrad)" radius={[5, 5, 0, 0]} maxBarSize={28} />
-            <Bar dataKey="Expenses" fill="url(#expensesGrad)" radius={[5, 5, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="Receipts" fill={`url(#${receiptsGradId})`} radius={[5, 5, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="Expenses" fill={`url(#${expensesGradId})`} radius={[5, 5, 0, 0]} maxBarSize={28} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -111,7 +118,7 @@ export default function RechartsCharts({ type, data, tooltipStyle, currencyForma
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
-            <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={balGradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.28} />
               <stop offset="50%" stopColor="#4f46e5" stopOpacity={0.10} />
               <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
@@ -135,7 +142,7 @@ export default function RechartsCharts({ type, data, tooltipStyle, currencyForma
           <ReferenceLine y={0} stroke="#e11d48" strokeDasharray="6 3" strokeWidth={1.5}
             label={{ value: 'Break-even', position: 'right', fill: '#e11d48', fontSize: 9, fontWeight: 500 }} />
           <Area type="monotone" dataKey="Balance" stroke="#4f46e5" strokeWidth={2.5}
-            fill="url(#balGrad)"
+            fill={`url(#${balGradId})`}
             dot={{ r: 3.5, fill: '#fff', stroke: '#4f46e5', strokeWidth: 2 }}
             activeDot={{ r: 6, stroke: '#4f46e5', strokeWidth: 2.5, fill: '#fff' }} />
         </AreaChart>

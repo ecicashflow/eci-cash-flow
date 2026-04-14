@@ -119,6 +119,14 @@ export default function BudgetView({ onRefresh }: { onRefresh: () => void }) {
 
   const handleSave = async () => {
     if (!validate()) return;
+    // Prevent __custom__ sentinel from leaking to API
+    if (form.category === '__custom__') {
+      form.category = '';
+    }
+    if (!form.category.trim()) {
+      setErrors(prev => ({ ...prev, category: 'Please select or enter a category' }));
+      return;
+    }
     setSaving(true);
     try {
       const url = editing ? `/api/budgets/${editing.id}` : '/api/budgets';
@@ -246,7 +254,7 @@ export default function BudgetView({ onRefresh }: { onRefresh: () => void }) {
                         </span>
                       </TableCell>
                       <TableCell className={`text-right text-[11px] font-bold font-mono tabular-nums ${varianceColor(b.variance)}`}>
-                        {b.variancePct.toFixed(1)}%
+                        {(b.variancePct ?? 0).toFixed(1)}%
                       </TableCell>
                       <TableCell className="py-2">
                         <div className="flex items-center gap-2">

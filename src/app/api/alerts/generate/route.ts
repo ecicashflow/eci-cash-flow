@@ -76,7 +76,7 @@ export async function POST() {
         status: 'Received',
         OR: [
           { year: currentYear, month: currentMonth },
-          { year: currentYear, month: currentMonth - 1 > 0 ? currentMonth - 1 : 12 },
+          { year: currentMonth > 1 ? currentYear : currentYear - 1, month: currentMonth > 1 ? currentMonth - 1 : 12 },
         ],
       },
     });

@@ -5,7 +5,7 @@ import {
   Plus, X, Calculator, RotateCcw, ArrowRightLeft,
   TrendingUp, TrendingDown, Wallet, ShieldAlert, CheckCircle,
   ArrowDownCircle, ArrowUpCircle, Clock, BarChart3,
-  AlertTriangle, Lightbulb, Loader2, Sparkles
+  AlertTriangle, Lightbulb, Loader2, Sparkles, CalendarRange
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { formatPKR, formatPKRFull, formatCompact, MONTH_NAMES } from '@/lib/format';
+import DateRangePicker, { formatDateStr, formatDisplayDate, getActivePresetLabel } from '@/components/ui/date-range-picker';
 
 // Lazy-load recharts to prevent SSR/hydration crashes
 const LazyRecharts = lazy(() => import('@/components/cashflow/RechartsCharts'));
@@ -97,11 +98,23 @@ function KpiCompare({ label, original, modified }: { label: string; original: nu
   );
 }
 
-export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps) {
+export default function WhatIfView({ data, startDate: propStartDate, endDate: propEndDate }: WhatIfViewProps) {
+  // Independent date range state for What-If Analysis (initialized from parent props)
+  const [localStartDate, setLocalStartDate] = useState<Date>(
+    propStartDate ? new Date(propStartDate) : new Date(2026, 3, 1)
+  );
+  const [localEndDate, setLocalEndDate] = useState<Date>(
+    propEndDate ? new Date(propEndDate) : new Date(2027, 2, 31)
+  );
+
+  // String versions for API calls
+  const startDate = formatDateStr(localStartDate);
+  const endDate = formatDateStr(localEndDate);
+
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [scenarioType, setScenarioType] = useState('add_receipt');
   const [scenarioMonth, setScenarioMonth] = useState('4');
-  const [scenarioYear, setScenarioYear] = useState(endDate ? new Date(endDate).getFullYear() : new Date().getFullYear());
+  const [scenarioYear, setScenarioYear] = useState(localEndDate.getFullYear());
   const [scenarioAmount, setScenarioAmount] = useState('');
   const [scenarioDescription, setScenarioDescription] = useState('');
 
@@ -113,9 +126,20 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
   const hasAutoLoaded = useRef(false);
 
   // Available months derived from date range
-  const startYear = startDate ? new Date(startDate).getFullYear() : 2026;
-  const endYear = endDate ? new Date(endDate).getFullYear() : 2027;
+  const startYear = localStartDate.getFullYear();
+  const endYear = localEndDate.getFullYear();
   const availableYears = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i);
+
+  // Handle date range change - clear results and re-trigger auto-scenarios
+  const handleDateRangeChange = useCallback((start: Date, end: Date) => {
+    setLocalStartDate(start);
+    setLocalEndDate(end);
+    setScenarioYear(end.getFullYear());
+    setResults(null);
+    setScenarios([]);
+    setError(null);
+    hasAutoLoaded.current = false;
+  }, []);
 
   // Detect if a scenario was AI-generated
   const isAIGenerated = (id: string) => id.startsWith('ai-');
@@ -210,7 +234,7 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
     }
   }, [startDate, endDate]);
 
-  // Auto-generate scenarios on mount (only once, when dates are available)
+  // Auto-generate scenarios when date range changes (only once per range change)
   useEffect(() => {
     if (startDate && endDate && !hasAutoLoaded.current) {
       hasAutoLoaded.current = true;
@@ -266,20 +290,21 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
   // Chart data for comparison
   const comparisonChartData = results ? results.original.monthlyData.map((m: any, i: number) => {
     const mod = results.modified.monthlyData[i];
+    if (!mod) return null;
     return {
       name: m.monthLabel,
       short: MONTH_NAMES[m.month - 1],
       Original: Math.round(m.closingBalance),
       Modified: Math.round(mod.closingBalance),
     };
-  }) : [];
+  }).filter(Boolean) : [];
 
   const tooltipStyle = { fontSize: 11, borderRadius: 8, border: '1px solid var(--border)' };
   const currencyFormatter = (v: number) => formatPKRFull(v);
 
   return (
     <div className="space-y-7">
-      {/* ─── Header ─── */}
+      {/* ─── Header with Date Range ─── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-200/60 shadow-sm shadow-cyan-200/40">
@@ -290,12 +315,34 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
             <p className="text-[11px] text-slate-400 font-medium">Model the impact of changes to your cash flow forecast</p>
           </div>
         </div>
-        {scenarios.length > 0 && (
-          <Button variant="outline" size="sm" onClick={resetScenarios} className="h-8 text-xs gap-1.5 rounded-lg font-medium">
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset All
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Independent Date Range Picker for What-If Analysis */}
+          <DateRangePicker
+            startDate={localStartDate}
+            endDate={localEndDate}
+            onChange={handleDateRangeChange}
+            compactOnMobile
+          />
+          {scenarios.length > 0 && (
+            <Button variant="outline" size="sm" onClick={resetScenarios} className="h-8 text-xs gap-1.5 rounded-lg font-medium">
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset All
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Active range indicator */}
+      <div className="flex items-center gap-2 px-1">
+        <CalendarRange className="w-3 h-3 text-primary/50" />
+        <p className="text-[10px] text-slate-400 font-medium">
+          Analyzing: <span className="text-slate-600 font-semibold">{formatDisplayDate(localStartDate)} — {formatDisplayDate(localEndDate)}</span>
+          {getActivePresetLabel(localStartDate, localEndDate) && (
+            <Badge className="ml-1.5 text-[8px] px-1.5 py-0 bg-primary/8 text-primary border-primary/15 font-semibold">
+              {getActivePresetLabel(localStartDate, localEndDate)}
+            </Badge>
+          )}
+        </p>
       </div>
 
       {/* ═══ a) Scenario Builder ═══ */}
@@ -665,6 +712,7 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
                   <tbody>
                     {results.original.monthlyData.map((orig: any, i: number) => {
                       const mod = results.modified.monthlyData[i];
+                      if (!mod) return null;
                       const diff = mod.closingBalance - orig.closingBalance;
                       const isImproved = diff > 0;
                       const isRecovered = orig.isDeficit && !mod.isDeficit;

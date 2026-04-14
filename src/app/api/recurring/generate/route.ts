@@ -28,13 +28,47 @@ export async function POST() {
 
       // Calculate the expense date as the recurring nextDate (or today if it's past)
       const expenseDate = nextDate <= now ? now : nextDate;
+      const targetMonth = expenseDate.getMonth() + 1;
+      const targetYear = expenseDate.getFullYear();
+
+      // Check if an expense already exists for this recurring item in the target month
+      const descPrefix = recurring.title.split(' ').slice(0, 3).join(' ');
+      const existing = await db.expense.findFirst({
+        where: {
+          category: recurring.category,
+          month: targetMonth,
+          year: targetYear,
+          description: { contains: `[Recurring] ${descPrefix}` },
+        },
+      });
+      if (existing) {
+        // Still advance the nextDate even if skipped
+        let newNextDate: Date;
+        switch (recurring.frequency) {
+          case 'quarterly':
+            newNextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 3, nextDate.getDate());
+            break;
+          case 'yearly':
+            newNextDate = new Date(nextDate.getFullYear() + 1, nextDate.getMonth(), nextDate.getDate());
+            break;
+          case 'monthly':
+          default:
+            newNextDate = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, nextDate.getDate());
+            break;
+        }
+        await db.recurringExpense.update({
+          where: { id: recurring.id },
+          data: { nextDate: newNextDate },
+        });
+        continue;
+      }
 
       // Create an actual expense record
       await db.expense.create({
         data: {
           date: expenseDate,
-          month: expenseDate.getMonth() + 1,
-          year: expenseDate.getFullYear(),
+          month: targetMonth,
+          year: targetYear,
           category: recurring.category,
           description: `[Recurring] ${recurring.title}`,
           amount: recurring.amount,

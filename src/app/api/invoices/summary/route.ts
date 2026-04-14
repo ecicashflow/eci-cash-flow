@@ -14,7 +14,7 @@ export async function GET() {
 
     for (const inv of invoices) {
       if (inv.status === 'Paid') {
-        totalPaid += inv.paidAmount || inv.amount;
+        totalPaid += inv.paidAmount;
         // Calculate days to pay from creation to paidDate
         if (inv.paidDate) {
           const diffMs = inv.paidDate.getTime() - inv.createdAt.getTime();

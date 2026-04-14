@@ -472,7 +472,7 @@ export async function POST(req: NextRequest) {
         const row = rows[rowIdx];
         if (!row) continue;
         const detail = getStringValue(row[2]);
-        if (!detail || detail === '-' || detail.toLowerCase().includes('opening') || detail === '') continue;
+        if (!detail || detail === '-' || detail === '') continue;
         if (detail.toLowerCase().includes('opening')) break;
 
         const lastMonthCol = monthColumns.length > 0 ? monthColumns[monthColumns.length - 1].colIndex : 14;
@@ -564,9 +564,9 @@ export async function POST(req: NextRequest) {
         if (!row) continue;
 
         const detail = getStringValue(row[2]); // Column C
-        if (!detail || detail === '-' || detail.toLowerCase().includes('opening') || detail === '') continue;
+        if (!detail || detail === '-' || detail === '') continue;
 
-        // Stop if we hit the opening balance row or a blank row
+        // Stop if we hit the opening balance row
         if (detail.toLowerCase().includes('opening')) break;
 
         // The balance is in the last month column, or fallback to the last data column

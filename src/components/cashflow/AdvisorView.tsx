@@ -461,13 +461,13 @@ export default function AdvisorView({ startDate, endDate, onRefresh }: AdvisorVi
                     <Badge className={`text-[9px] px-1.5 py-0 ${sc.bg} border-0`}>{g.status}</Badge>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Progress value={Math.min(g.progress, 100)} className="h-2 flex-1" />
-                    <span className="text-[10px] font-bold text-slate-700 w-10 text-right">{g.progress.toFixed(0)}%</span>
+                    <Progress value={Math.min(g.progress ?? 0, 100)} className="h-2 flex-1" />
+                    <span className="text-[10px] font-bold text-slate-700 w-10 text-right">{(g.progress ?? 0).toFixed(0)}%</span>
                   </div>
                   <div className="flex justify-between mt-1.5 text-[9px] text-slate-400">
-                    <span>Current: {formatPKRFull(g.currentAmount)}</span>
-                    <span>Target: {formatPKRFull(g.targetAmount)}</span>
-                    <span>Need: {formatPKRFull(g.requiredMonthlyContribution)}/mo</span>
+                    <span>Current: {formatPKRFull(g.currentAmount ?? 0)}</span>
+                    <span>Target: {formatPKRFull(g.targetAmount ?? 0)}</span>
+                    <span>Need: {formatPKRFull(g.requiredMonthlyContribution ?? 0)}/mo</span>
                   </div>
                 </div>
               );

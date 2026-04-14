@@ -14,12 +14,17 @@ interface ReportsViewProps {
 
 export default function ReportsView({ data }: ReportsViewProps) {
   const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleExportCSV = async (type: string) => {
     setExporting(true);
     try {
       const fyYear = data?.fyYear || new Date().getFullYear();
       const res = await fetch(`/api/reports/export?type=${type}&format=csv&year=${fyYear}`);
+      if (!res.ok) {
+        setError('Export failed. Please try again.');
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -39,6 +44,10 @@ export default function ReportsView({ data }: ReportsViewProps) {
     try {
       const fyYear = data?.fyYear || new Date().getFullYear();
       const res = await fetch(`/api/reports/export?type=all&format=pdf&year=${fyYear}`);
+      if (!res.ok) {
+        setError('Export failed. Please try again.');
+        return;
+      }
       const html = await res.text();
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
@@ -59,6 +68,10 @@ export default function ReportsView({ data }: ReportsViewProps) {
     try {
       const fyYear = data?.fyYear || new Date().getFullYear();
       const res = await fetch(`/api/reports/export?type=${type}&format=xlsx&year=${fyYear}`);
+      if (!res.ok) {
+        setError('Export failed. Please try again.');
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -76,6 +89,17 @@ export default function ReportsView({ data }: ReportsViewProps) {
   const handlePrint = () => {
     window.print();
   };
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading reports...</p>
+        </div>
+      </div>
+    );
+  }
 
   const { monthlyData, currentBalance, shortfallAnalysis } = data;
 
