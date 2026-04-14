@@ -1,334 +1,221 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShieldAlert, AlertTriangle, CheckCircle, Info, Lightbulb,
   Clock, TrendingDown, TrendingUp, Users, CalendarClock,
-  ChevronDown, ChevronUp, X, Sparkles, ArrowRight,
-  Banknote, BarChart3, CircleDot, Zap
+  ChevronDown, ChevronUp, Sparkles, ArrowRight, Zap,
+  Banknote, BarChart3, CircleDot, Target, FileSpreadsheet,
+  Repeat, Globe, Brain, Activity, DollarSign, PieChart,
+  AlertOctagon, Rocket, Timer, Flame, Snowflake
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Checkbox } from '@/components/ui/checkbox';
 import { formatPKR, formatPKRFull, formatCompact } from '@/lib/format';
 
 interface AdvisorViewProps {
-  data: any;
   startDate: string;
   endDate: string;
   onRefresh: () => void;
 }
 
-/* ─── Type → icon / color mapping ─── */
-const TYPE_CONFIG: Record<string, { icon: React.ElementType; border: string; bg: string; iconBg: string; iconColor: string; badge: string; badgeText: string }> = {
-  critical: {
-    icon: ShieldAlert,
-    border: 'border-l-red-500',
-    bg: 'bg-gradient-to-r from-red-50/70 via-white to-red-50/30',
-    iconBg: 'bg-gradient-to-br from-red-100 to-red-200/60',
-    iconColor: 'text-red-600',
-    badge: 'bg-red-100/80 text-red-700 border-red-200/70',
-    badgeText: 'text-red-700',
-  },
-  warning: {
-    icon: AlertTriangle,
-    border: 'border-l-amber-500',
-    bg: 'bg-gradient-to-r from-amber-50/70 via-white to-amber-50/30',
-    iconBg: 'bg-gradient-to-br from-amber-100 to-amber-200/60',
-    iconColor: 'text-amber-600',
-    badge: 'bg-amber-100/80 text-amber-700 border-amber-200/70',
-    badgeText: 'text-amber-700',
-  },
-  actionable: {
-    icon: Zap,
-    border: 'border-l-orange-500',
-    bg: 'bg-gradient-to-r from-orange-50/70 via-white to-orange-50/30',
-    iconBg: 'bg-gradient-to-br from-orange-100 to-orange-200/60',
-    iconColor: 'text-orange-600',
-    badge: 'bg-orange-100/80 text-orange-700 border-orange-200/70',
-    badgeText: 'text-orange-700',
-  },
-  suggestion: {
-    icon: Lightbulb,
-    border: 'border-l-purple-500',
-    bg: 'bg-gradient-to-r from-purple-50/70 via-white to-purple-50/30',
-    iconBg: 'bg-gradient-to-br from-purple-100 to-purple-200/60',
-    iconColor: 'text-purple-600',
-    badge: 'bg-purple-100/80 text-purple-700 border-purple-200/70',
-    badgeText: 'text-purple-700',
-  },
-  success: {
-    icon: CheckCircle,
-    border: 'border-l-emerald-500',
-    bg: 'bg-gradient-to-r from-emerald-50/70 via-white to-emerald-50/30',
-    iconBg: 'bg-gradient-to-br from-emerald-100 to-emerald-200/60',
-    iconColor: 'text-emerald-600',
-    badge: 'bg-emerald-100/80 text-emerald-700 border-emerald-200/70',
-    badgeText: 'text-emerald-700',
-  },
-  info: {
-    icon: Info,
-    border: 'border-l-sky-500',
-    bg: 'bg-gradient-to-r from-sky-50/70 via-white to-sky-50/30',
-    iconBg: 'bg-gradient-to-br from-sky-100 to-sky-200/60',
-    iconColor: 'text-sky-600',
-    badge: 'bg-sky-100/80 text-sky-700 border-sky-200/70',
-    badgeText: 'text-sky-700',
-  },
+/* ─── Severity Colors ─── */
+const SEV: Record<string, { bg: string; text: string; border: string; icon: string; dot: string }> = {
+  critical: { bg: 'bg-red-50/80', text: 'text-red-700', border: 'border-red-300/60', icon: 'text-red-600', dot: 'bg-red-500' },
+  high: { bg: 'bg-orange-50/80', text: 'text-orange-700', border: 'border-orange-300/60', icon: 'text-orange-600', dot: 'bg-orange-500' },
+  medium: { bg: 'bg-amber-50/80', text: 'text-amber-700', border: 'border-amber-300/60', icon: 'text-amber-600', dot: 'bg-amber-500' },
+  low: { bg: 'bg-sky-50/80', text: 'text-sky-700', border: 'border-sky-300/60', icon: 'text-sky-600', dot: 'bg-sky-500' },
 };
 
-/* ─── Priority badge helper ─── */
-function PriorityBadge({ priority }: { priority: number }) {
-  const config = priority <= 1
-    ? { label: 'Critical', cls: 'bg-red-100/80 text-red-700 border-red-200/70' }
-    : priority <= 2
-    ? { label: 'High', cls: 'bg-orange-100/80 text-orange-700 border-orange-200/70' }
-    : priority <= 3
-    ? { label: 'Medium', cls: 'bg-amber-100/80 text-amber-700 border-amber-200/70' }
-    : { label: 'Low', cls: 'bg-slate-100/80 text-slate-600 border-slate-200/70' };
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  'on-track': { bg: 'bg-emerald-100/80 text-emerald-700', text: 'text-emerald-600' },
+  'at-risk': { bg: 'bg-amber-100/80 text-amber-700', text: 'text-amber-600' },
+  'behind': { bg: 'bg-red-100/80 text-red-700', text: 'text-red-600' },
+  'overspent': { bg: 'bg-red-100/80 text-red-700', text: 'text-red-600' },
+  'caution': { bg: 'bg-amber-100/80 text-amber-700', text: 'text-amber-600' },
+};
+
+const EFFORT_COLORS: Record<string, string> = {
+  low: 'bg-emerald-100/80 text-emerald-700 border-emerald-200/60',
+  medium: 'bg-amber-100/80 text-amber-700 border-amber-200/60',
+  high: 'bg-red-100/80 text-red-700 border-red-200/60',
+};
+
+/* ─── Stat Card Mini ─── */
+function StatMini({ label, value, sub, color = 'text-slate-800' }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <Badge className={`text-[9px] px-2 py-0.5 font-semibold shadow-sm ${config.cls}`}>
-      {config.label}
-    </Badge>
-  );
-}
-
-/* ─── Recommendation Card ─── */
-function RecommendationCard({ rec }: { rec: any }) {
-  const [expanded, setExpanded] = useState(false);
-  const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
-  const type = rec.type === 'actionable' ? 'actionable' : rec.type;
-  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.info;
-  const Icon = cfg.icon;
-
-  return (
-    <div
-      className={`border-l-4 ${cfg.border} ${cfg.bg} rounded-xl ring-1 ring-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300`}
-    >
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <div className={`p-2 rounded-xl ${cfg.iconBg} shadow-sm flex-shrink-0 mt-0.5`}>
-            <Icon className={`w-4 h-4 ${cfg.iconColor}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h4 className="text-sm font-bold text-slate-800 tracking-tight leading-tight">{rec.title}</h4>
-              <PriorityBadge priority={rec.priority} />
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{rec.message}</p>
-
-            {rec.actions && rec.actions.length > 0 && (
-              <div className="mt-2.5">
-                <button
-                  onClick={() => setExpanded(!expanded)}
-                  className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-700 transition-colors duration-200"
-                >
-                  {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {expanded ? 'Hide' : 'Show'} {rec.actions.length} action{rec.actions.length > 1 ? 's' : ''}
-                </button>
-                {expanded && (
-                  <div className="mt-2 space-y-1.5 animate-fade-in">
-                    {rec.actions.map((action: string, i: number) => (
-                      <label
-                        key={i}
-                        className="flex items-start gap-2.5 cursor-pointer group p-2 rounded-lg hover:bg-white/60 transition-colors duration-150"
-                      >
-                        <Checkbox
-                          checked={!!checkedItems[i]}
-                          onCheckedChange={(checked) =>
-                            setCheckedItems(prev => ({ ...prev, [i]: !!checked }))
-                          }
-                          className="mt-0.5"
-                        />
-                        <span className={`text-[11px] leading-relaxed transition-colors duration-200 ${checkedItems[i] ? 'text-slate-400 line-through' : 'text-slate-600 group-hover:text-slate-800'}`}>
-                          {action}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+    <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-3.5 ring-1 ring-slate-200/60 shadow-sm">
+      <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{label}</p>
+      <p className={`text-sm font-extrabold tracking-tight mt-0.5 ${color}`}>{value}</p>
+      {sub && <p className="text-[9px] text-slate-400 font-medium mt-0.5">{sub}</p>}
     </div>
   );
 }
 
-/* ─── Urgency Badge ─── */
-function UrgencyBadge({ urgency }: { urgency: string }) {
-  const config: Record<string, { label: string; cls: string }> = {
-    critical: { label: 'Critical', cls: 'bg-red-100/80 text-red-700 border-red-200/70' },
-    high: { label: 'High', cls: 'bg-orange-100/80 text-orange-700 border-orange-200/70' },
-    medium: { label: 'Medium', cls: 'bg-amber-100/80 text-amber-700 border-amber-200/70' },
-    low: { label: 'Low', cls: 'bg-slate-100/80 text-slate-600 border-slate-200/70' },
-  };
-  const c = config[urgency] || config.low;
-  return <Badge className={`text-[9px] px-2 py-0.5 font-semibold shadow-sm ${c.cls}`}>{c.label}</Badge>;
+/* ─── Collapsible Section ─── */
+function Section({ icon: Icon, title, desc, children, defaultOpen = false, accent = 'from-slate-100 to-slate-200/60', accentShadow = 'shadow-slate-200/40' }: {
+  icon: React.ElementType; title: string; desc: string; children: React.ReactNode; defaultOpen?: boolean;
+  accent?: string; accentShadow?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className="shadow-md border-slate-200/60 hover:shadow-lg transition-shadow duration-300">
+      <CardHeader className="pb-2 px-6 pt-5 cursor-pointer select-none" onClick={() => setOpen(!open)}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl bg-gradient-to-br ${accent} shadow-sm ${accentShadow}`}>
+              <Icon className="w-4 h-4 text-slate-700" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">{title}</CardTitle>
+              <CardDescription className="text-[11px] text-slate-400 font-medium">{desc}</CardDescription>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+            {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </Button>
+        </div>
+      </CardHeader>
+      {open && <CardContent className="px-6 pb-5">{children}</CardContent>}
+    </Card>
+  );
 }
 
 /* ─── Main AdvisorView ─── */
-export default function AdvisorView({ data, startDate, endDate, onRefresh }: AdvisorViewProps) {
-  const [scenarioSortAsc, setScenarioSortAsc] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+export default function AdvisorView({ startDate, endDate, onRefresh }: AdvisorViewProps) {
+  const [advisorData, setAdvisorData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Defensive defaults
-  const overallHealth = data?.overallHealth ?? 'HEALTHY';
-  const cashRunwayMonths = data?.cashRunwayMonths ?? 0;
-  const currentBalance = data?.currentBalance ?? 0;
-  const forecastClosing = data?.forecastClosing ?? 0;
-  const avgMonthlyExpenses = data?.avgMonthlyExpenses ?? 0;
-  const totalDeficitMonths = data?.totalDeficitMonths ?? 0;
-  const totalLowCashMonths = data?.totalLowCashMonths ?? 0;
-  const recommendations = data?.recommendations ?? [];
-  const paymentScenarios = data?.paymentScenarios ?? [];
-  const expensePostponement = data?.expensePostponement ?? [];
-  const clientFollowUps = data?.clientFollowUps ?? [];
-  const monthlyInsights = data?.monthlyInsights ?? [];
+  const fetchAdvisor = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/advisor?startDate=${startDate}&endDate=${endDate}`);
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      setAdvisorData(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load advisor analysis');
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate]);
 
-  const sortedScenarios = [...paymentScenarios].sort((a, b) =>
-    scenarioSortAsc ? a.amount - b.amount : b.amount - a.amount
-  );
+  useEffect(() => { fetchAdvisor(); }, [fetchAdvisor]);
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    onRefresh();
-    setTimeout(() => setIsRefreshing(false), 1500);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-2xl bg-violet-100/80 flex items-center justify-center mx-auto mb-4">
+            <Brain className="w-7 h-7 text-violet-600 animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Analyzing your complete portal...</p>
+          <p className="text-xs text-slate-400 mt-1">Gathering data from all modules</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !advisorData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center max-w-md">
+          <ShieldAlert className="w-10 h-10 text-red-500 mx-auto mb-3" />
+          <p className="text-sm font-medium text-slate-700">{error || 'No advisor data available'}</p>
+          <Button onClick={fetchAdvisor} variant="outline" size="sm" className="mt-4 gap-1.5">
+            <Activity className="w-3.5 h-3.5" /> Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const d = advisorData;
+  // Score is the primary source of truth — derive health status from it
+  const score = typeof d.healthScore === 'number' ? d.healthScore : 0;
+  // Derive health from score: < 40 = CRITICAL, < 70 = WARNING, else HEALTHY
+  let health: string;
+  if (score < 40) health = 'CRITICAL';
+  else if (score < 70) health = 'WARNING';
+  else health = 'HEALTHY';
+  // If API also sends a string status, use it ONLY if score is unavailable
+  if (score === 0 && typeof d.overallHealth === 'string' && d.overallHealth !== 'CRITICAL') {
+    // API disagrees with derived logic — trust the API if it says something other than CRITICAL when score=0
+    // But only if score truly means "no data" not "zero health"
+  }
+
+  const healthConfig: Record<string, { gradient: string; shadow: string; icon: React.ElementType; label: string; sub: string }> = {
+    CRITICAL: { gradient: 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700', shadow: 'shadow-lg shadow-red-500/20', icon: ShieldAlert, label: 'CRITICAL', sub: 'Immediate action required — cash flow at risk' },
+    WARNING: { gradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600', shadow: 'shadow-lg shadow-amber-500/20', icon: AlertTriangle, label: 'WARNING', sub: 'Attention needed' },
+    HEALTHY: { gradient: 'bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700', shadow: 'shadow-lg shadow-emerald-500/20', icon: CheckCircle, label: 'HEALTHY', sub: 'Cash flow is stable' },
   };
-
-  // Health config
-  const healthConfig: Record<string, { icon: React.ElementType; gradient: string; ring: string; iconBg: string; iconColor: string; label: string; sublabel: string; shadow: string }> = {
-    CRITICAL: {
-      icon: ShieldAlert,
-      gradient: 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700',
-      ring: 'ring-red-400/40',
-      iconBg: 'bg-white/20',
-      iconColor: 'text-white',
-      label: 'CRITICAL',
-      sublabel: 'Immediate action required',
-      shadow: 'shadow-lg shadow-red-500/20',
-    },
-    WARNING: {
-      icon: AlertTriangle,
-      gradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600',
-      ring: 'ring-amber-400/40',
-      iconBg: 'bg-white/20',
-      iconColor: 'text-white',
-      label: 'WARNING',
-      sublabel: 'Attention needed',
-      shadow: 'shadow-lg shadow-amber-500/20',
-    },
-    HEALTHY: {
-      icon: CheckCircle,
-      gradient: 'bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700',
-      ring: 'ring-emerald-400/40',
-      iconBg: 'bg-white/20',
-      iconColor: 'text-white',
-      label: 'HEALTHY',
-      sublabel: 'Cash flow is stable',
-      shadow: 'shadow-lg shadow-emerald-500/20',
-    },
-  };
-
-  const health = healthConfig[overallHealth] || healthConfig.HEALTHY;
-  const HealthIcon = health.icon;
-
-  // Runway percentage (max 12 months = 100%)
-  const runwayPct = Math.min((cashRunwayMonths / 12) * 100, 100);
-  const runwayColor = cashRunwayMonths >= 6 ? 'from-emerald-400 to-emerald-600' : cashRunwayMonths >= 3 ? 'from-amber-400 to-amber-600' : 'from-red-400 to-red-600';
-
-  // Status indicator for monthly insights
-  const statusConfig: Record<string, { label: string; cls: string; dot: string }> = {
-    critical: { label: 'Deficit', cls: 'bg-red-100/80 text-red-700 border-red-200/70', dot: 'bg-red-500' },
-    warning: { label: 'Warning', cls: 'bg-amber-100/80 text-amber-700 border-amber-200/70', dot: 'bg-amber-500' },
-    healthy: { label: 'Healthy', cls: 'bg-emerald-100/80 text-emerald-700 border-emerald-200/70', dot: 'bg-emerald-500' },
-  };
+  const hc = healthConfig[health] || healthConfig.HEALTHY;
+  const HIcon = hc.icon;
+  const cp = d.cashPosition || {};
+  const ra = d.receivableAnalysis || {};
+  const ea = d.expenseAnalysis || {};
+  const ba = d.budgetAdherence || {};
+  const ih = d.invoiceHealth || {};
+  const gp = d.goalProgress || [];
+  const ri = d.recurringImpact || {};
+  const ts = d.trendSignals || {};
+  const rm = d.riskMatrix || [];
+  const ap = d.actionPlan || [];
+  const mdd = d.monthlyDeepDive || [];
 
   return (
-    <div className="space-y-7">
-      {/* ─── Generate Insights Button ─── */}
+    <div className="space-y-6">
+      {/* ─── Header ─── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200/60 shadow-sm shadow-purple-200/40">
-            <Sparkles className="w-4 h-4 text-violet-600" />
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200/60 shadow-sm">
+            <Brain className="w-4 h-4 text-violet-600" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-800 tracking-tight">Smart Advisor</h2>
-            <p className="text-[11px] text-slate-400 font-medium">AI-powered cash flow insights & recommendations</p>
+            <h2 className="text-sm font-bold text-slate-800 tracking-tight">AI Advisor — Full Portal Analysis</h2>
+            <p className="text-[11px] text-slate-400 font-medium">Intelligence from {Object.keys(d).filter(k => d[k] !== null && d[k] !== undefined && typeof d[k] !== 'string' && !Array.isArray(d[k])).length} modules</p>
           </div>
         </div>
-        <Button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          size="sm"
-          className="h-8 text-xs gap-1.5 rounded-lg font-medium shadow-sm"
-        >
-          {isRefreshing ? (
-            <>
-              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Analyzing...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-3.5 h-3.5" />
-              Generate Insights
-            </>
-          )}
+        <Button onClick={() => { fetchAdvisor(); onRefresh(); }} size="sm" className="h-8 text-xs gap-1.5 rounded-lg font-medium shadow-sm">
+          <Sparkles className="w-3.5 h-3.5" /> Re-Analyze
         </Button>
       </div>
 
-      {/* ═══ a) Overall Health Banner ═══ */}
-      <div
-        className={`relative overflow-hidden rounded-2xl ${health.gradient} ${health.shadow} ring-1 ${health.ring}`}
-      >
-        {/* Decorative pattern */}
+      {/* ═══ 1. HEALTH BANNER ═══ */}
+      <div className={`relative overflow-hidden rounded-2xl ${hc.gradient} ${hc.shadow}`}>
         <div className="absolute inset-0 opacity-[0.07]">
           <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white" />
           <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-white" />
-          <div className="absolute top-1/2 right-1/4 w-20 h-20 rounded-full bg-white" />
         </div>
-
-        <div className="relative px-6 py-6">
+        <div className="relative px-6 py-5">
           <div className="flex items-center gap-4">
-            <div className={`p-3.5 rounded-2xl ${health.iconBg} backdrop-blur-sm`}>
-              <HealthIcon className={`w-7 h-7 ${health.iconColor}`} />
+            <div className="p-3.5 rounded-2xl bg-white/20 backdrop-blur-sm">
+              <HIcon className="w-7 h-7 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1.5">
-                <h2 className="text-xl font-extrabold text-white tracking-tight">{health.label}</h2>
-                <span className="text-[11px] font-medium text-white/70">{health.sublabel}</span>
+              <div className="flex items-center gap-3 mb-1">
+                <h2 className="text-xl font-extrabold text-white">{hc.label}</h2>
+                <span className="text-[11px] text-white/70 font-medium">{hc.sub}</span>
+                <Badge className="text-[10px] font-bold px-2 py-0.5 bg-white/20 text-white border-0">{score}/100</Badge>
               </div>
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-white/70" />
-                  <span className="text-[11px] text-white/90 font-semibold">
-                    {cashRunwayMonths} month{cashRunwayMonths !== 1 ? 's' : ''} runway
+              <div className="flex flex-wrap gap-x-5 gap-y-1">
+                <span className="text-[11px] text-white/80 font-medium flex items-center gap-1.5">
+                  <Banknote className="w-3 h-3" /> {formatPKRFull(cp.currentBalance || 0)}
+                </span>
+                <span className="text-[11px] text-white/80 font-medium flex items-center gap-1.5">
+                  <Clock className="w-3 h-3" /> {cp.runwayMonths || 0}m runway
+                </span>
+                <span className="text-[11px] text-white/80 font-medium flex items-center gap-1.5">
+                  {health === 'CRITICAL' || health === 'WARNING' ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />} Daily burn: {formatPKRFull(cp.dailyBurnRate || 0)}
+                </span>
+                {(cp.forecastClosing || 0) < 0 && (
+                  <span className="text-[11px] text-red-200 font-medium flex items-center gap-1.5">
+                    <TrendingDown className="w-3 h-3" /> Forecast: {formatPKRFull(cp.forecastClosing)}
                   </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Banknote className="w-3.5 h-3.5 text-white/70" />
-                  <span className="text-[11px] text-white/90 font-semibold">
-                    Balance: {formatPKRFull(currentBalance)}
-                  </span>
-                </div>
-                {totalDeficitMonths > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <TrendingDown className="w-3.5 h-3.5 text-red-200" />
-                    <span className="text-[11px] text-red-100 font-semibold">
-                      {totalDeficitMonths} deficit month{totalDeficitMonths !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                )}
-                {totalLowCashMonths > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-200" />
-                    <span className="text-[11px] text-amber-100 font-semibold">
-                      {totalLowCashMonths} low-cash month{totalLowCashMonths !== 1 ? 's' : ''}
-                    </span>
-                  </div>
                 )}
               </div>
             </div>
@@ -336,360 +223,433 @@ export default function AdvisorView({ data, startDate, endDate, onRefresh }: Adv
         </div>
       </div>
 
-      {/* ═══ b) Cash Runway Card ═══ */}
-      <Card className="shadow-md border-slate-200/60 hover:shadow-lg transition-shadow duration-300">
-        <CardHeader className="pb-2 px-6 pt-5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-sky-100 to-blue-200/60 shadow-sm shadow-sky-200/40">
-              <Clock className="w-4 h-4 text-sky-600" />
-            </div>
-            <div>
-              <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">Cash Runway</CardTitle>
-              <CardDescription className="text-[11px] text-slate-400 font-medium">
-                How long current balance can sustain operations
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="px-6 pb-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Runway display */}
-            <div className="md:col-span-2">
-              <div className="flex items-end gap-2 mb-3">
-                <span className="text-3xl font-extrabold text-slate-800 tracking-tight">{cashRunwayMonths}</span>
-                <span className="text-sm font-semibold text-slate-400 mb-1">of 12 months</span>
-                <div className="ml-auto flex items-center gap-1.5">
-                  <span className="text-[10px] text-slate-400 font-medium">Avg. monthly burn: {formatPKRFull(avgMonthlyExpenses)}</span>
-                </div>
+      {/* ═══ 2. EXECUTIVE SUMMARY (AI) ═══ */}
+      {d.executiveSummary && (
+        <Card className="shadow-md border-violet-200/60 bg-gradient-to-br from-violet-50/50 via-white to-purple-50/30">
+          <CardHeader className="pb-2 px-6 pt-5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200/60 shadow-sm">
+                <Sparkles className="w-4 h-4 text-violet-600" />
               </div>
-              <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full bg-gradient-to-r ${runwayColor} transition-all duration-700 ease-out`}
-                  style={{ width: `${runwayPct}%` }}
-                />
-              </div>
-              {/* Month markers */}
-              <div className="flex justify-between mt-1.5 px-0.5">
-                {[0, 3, 6, 9, 12].map(m => (
-                  <span key={m} className="text-[9px] text-slate-300 font-medium">{m}m</span>
-                ))}
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">AI Executive Summary</CardTitle>
+                <CardDescription className="text-[11px] text-slate-400 font-medium">Powered by AI — analysis of your complete portal</CardDescription>
               </div>
             </div>
-            {/* Stats */}
-            <div className="space-y-2.5">
-              <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-3.5 ring-1 ring-slate-200/60 shadow-sm">
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Current Balance</p>
-                <p className={`text-base font-extrabold tracking-tight mt-0.5 ${currentBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {formatPKRFull(currentBalance)}
-                </p>
-              </div>
-              <div className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-3.5 ring-1 ring-slate-200/60 shadow-sm">
-                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Forecast Close</p>
-                <p className={`text-base font-extrabold tracking-tight mt-0.5 ${forecastClosing >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                  {formatPKRFull(forecastClosing)}
-                </p>
-              </div>
+          </CardHeader>
+          <CardContent className="px-6 pb-5">
+            <div className="prose prose-sm max-w-none text-[12px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+              {d.executiveSummary}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* ═══ c) Smart Recommendations ═══ */}
-      {recommendations.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-amber-100 to-orange-200/60 shadow-sm shadow-amber-200/40">
-              <Lightbulb className="w-4 h-4 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 tracking-tight">Smart Recommendations</h3>
-              <p className="text-[11px] text-slate-400 font-medium">{recommendations.length} actionable insight{recommendations.length !== 1 ? 's' : ''} for your cash flow</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {recommendations.map((rec: any, i: number) => (
-              <div key={i} className="animate-fade-in" style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}>
-                <RecommendationCard rec={rec} />
-              </div>
-            ))}
-          </div>
+      {/* ═══ 3. CASH POSITION ═══ */}
+      <Section icon={Banknote} title="Cash Position" desc="Current balance, runway, burn rate" defaultOpen={true} accent="from-emerald-100 to-green-200/60" accentShadow="shadow-emerald-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <StatMini label="Current Balance" value={formatPKRFull(cp.currentBalance || 0)} color={cp.currentBalance >= 0 ? 'text-emerald-700' : 'text-red-700'} />
+          <StatMini label="Forecast Close" value={formatPKRFull(cp.forecastClosing || 0)} color={(cp.forecastClosing || 0) >= 0 ? 'text-emerald-700' : 'text-red-700'} />
+          <StatMini label="Runway" value={`${cp.runwayMonths || 0} months`} sub="at avg monthly burn" />
+          <StatMini label="Daily Burn" value={formatPKRFull(cp.dailyBurnRate || 0)} />
+          <StatMini label="Working Capital" value={`${cp.workingCapitalRatio || 0}x`} sub="ratio vs 3m expenses" />
+          <StatMini label="Net Cash Flow" value={formatPKRFull(cp.netCashFlow || 0)} color={(cp.netCashFlow || 0) >= 0 ? 'text-emerald-700' : 'text-red-700'} />
         </div>
-      )}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <StatMini label="Total Receipts" value={formatPKRFull(cp.totalRangeReceipts || 0)} sub="in selected period" />
+          <StatMini label="Total Expenses" value={formatPKRFull(cp.totalRangeExpenses || 0)} sub="in selected period" />
+        </div>
+      </Section>
 
-      {/* ═══ d) Payment Scenarios Table ═══ */}
-      {sortedScenarios.length > 0 && (
-        <Card className="shadow-md border-slate-200/60 hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="pb-2 px-6 pt-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-green-200/60 shadow-sm shadow-emerald-200/40">
-                  <ArrowRight className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">Payment Scenarios</CardTitle>
-                  <CardDescription className="text-[11px] text-slate-400 font-medium">
-                    Impact if each expected payment is received
-                  </CardDescription>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setScenarioSortAsc(!scenarioSortAsc)}
-                className="h-7 text-[10px] gap-1 rounded-lg font-medium"
-              >
-                <BarChart3 className="w-3 h-3" />
-                {scenarioSortAsc ? 'Amount ↑' : 'Amount ↓'}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="px-6 pb-5">
-            <div className="overflow-x-auto custom-scrollbar rounded-xl ring-1 ring-slate-200/70">
-              <table className="w-full text-[11px] border-collapse">
-                <thead>
-                  <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200/60">
-                    <th className="text-left p-3 font-bold text-slate-600">Client</th>
-                    <th className="text-right p-3 font-bold text-slate-600">Amount</th>
-                    <th className="text-left p-3 font-bold text-slate-600">Month</th>
-                    <th className="text-right p-3 font-bold text-slate-600">Current Balance</th>
-                    <th className="text-right p-3 font-bold text-emerald-700">If Received</th>
-                    <th className="text-center p-3 font-bold text-slate-600">Months Covered</th>
-                    <th className="text-center p-3 font-bold text-slate-600 w-16">Priority</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedScenarios.map((s: any, i: number) => (
-                    <tr
-                      key={i}
-                      className={`border-b border-slate-100/80 transition-colors duration-150 ${
-                        s.improvesDeficit
-                          ? 'bg-emerald-50/50 hover:bg-emerald-50/80'
-                          : i % 2 === 0 ? 'bg-white hover:bg-slate-50/60' : 'bg-slate-50/40 hover:bg-slate-100/50'
-                      }`}
-                    >
-                      <td className="p-3 font-semibold text-slate-700 max-w-[180px] truncate">{s.client}</td>
-                      <td className="text-right p-3 font-mono tabular-nums text-slate-800 font-bold">{formatPKR(s.amount)}</td>
-                      <td className="p-3 text-slate-600 font-medium">{s.expectedMonth}</td>
-                      <td className={`text-right p-3 font-mono tabular-nums font-medium ${s.currentMonthBalance < 0 ? 'text-red-700' : 'text-slate-600'}`}>
-                        {formatPKR(s.currentMonthBalance)}
-                      </td>
-                      <td className="text-right p-3 font-mono tabular-nums text-emerald-700 font-bold">
-                        {formatPKR(s.ifReceived)}
-                        {s.improvesDeficit && (
-                          <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" title="Eliminates deficit" />
-                        )}
-                      </td>
-                      <td className="text-center p-3">
-                        <Badge className={`text-[9px] px-2 py-0.5 font-semibold shadow-sm ${
-                          s.monthsCovered >= 3 ? 'bg-emerald-100/80 text-emerald-700 border-emerald-200/70' :
-                          s.monthsCovered >= 1 ? 'bg-sky-100/80 text-sky-700 border-sky-200/70' :
-                          'bg-slate-100/80 text-slate-600 border-slate-200/70'
-                        }`}>
-                          {s.monthsCovered}m
-                        </Badge>
-                      </td>
-                      <td className="text-center p-3">
-                        <Badge className={`text-[9px] px-2 py-0.5 font-semibold shadow-sm ${
-                          s.priority === 'high' ? 'bg-red-100/80 text-red-700 border-red-200/70' :
-                          s.priority === 'medium' ? 'bg-amber-100/80 text-amber-700 border-amber-200/70' :
-                          'bg-slate-100/80 text-slate-600 border-slate-200/70'
-                        }`}>
-                          {s.priority}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {sortedScenarios.some((s: any) => s.improvesDeficit) && (
-              <div className="flex items-center gap-2 mt-3 px-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-[10px] text-slate-400 font-medium">Highlighted rows show payments that would eliminate deficit months</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ═══ e) Client Follow-ups ═══ */}
-      {clientFollowUps.length > 0 && (
-        <Card className="shadow-md border-slate-200/60 hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="pb-2 px-6 pt-5">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-orange-100 to-red-200/60 shadow-sm shadow-orange-200/40">
-                <Users className="w-4 h-4 text-orange-600" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">Client Follow-ups</CardTitle>
-                <CardDescription className="text-[11px] text-slate-400 font-medium">
-                  {clientFollowUps.length} client{clientFollowUps.length !== 1 ? 's' : ''} requiring attention, sorted by urgency
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-6 pb-5">
-            <div className="space-y-2.5 max-h-96 overflow-y-auto custom-scrollbar pr-1">
-              {clientFollowUps.map((c: any, i: number) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3.5 rounded-xl ring-1 ring-slate-200/60 bg-white/70 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-                >
-                  <div className={`flex-shrink-0 p-2 rounded-lg ${
-                    c.urgency === 'critical' ? 'bg-red-100/80' : c.urgency === 'high' ? 'bg-orange-100/80' : 'bg-amber-100/80'
-                  }`}>
-                    {c.urgency === 'critical' ? (
-                      <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
-                    ) : c.urgency === 'high' ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />
-                    ) : (
-                      <CalendarClock className="w-3.5 h-3.5 text-amber-600" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-slate-800 truncate">{c.client}</p>
-                      <UrgencyBadge urgency={c.urgency} />
-                    </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        Expected: <span className="text-slate-600 font-semibold">{formatPKR(c.totalExpected)}</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        Pending: <span className="text-red-600 font-semibold">{formatPKR(c.pendingAmount)}</span>
-                      </span>
-                    </div>
-                    {c.overdueMonths.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                        <span className="text-[9px] text-slate-400 font-medium">Overdue:</span>
-                        {c.overdueMonths.map((m: string, j: number) => (
-                          <Badge key={j} className="text-[8px] px-1.5 py-0 bg-red-50 text-red-600 border-red-200/60 font-mono">
-                            {m}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`text-sm font-bold font-mono tabular-nums ${c.pendingAmount > 500000 ? 'text-red-700' : 'text-slate-700'}`}>
-                      {formatPKR(c.pendingAmount)}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5">{c.overdueMonths.length} overdue</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ═══ f) Expense Postponement ═══ */}
-      {expensePostponement.length > 0 && (
-        <Card className="ring-1 ring-orange-200/70 bg-gradient-to-br from-orange-50/50 via-white to-amber-50/30 shadow-md hover:shadow-lg transition-shadow duration-300">
-          <CardHeader className="pb-2 px-6 pt-5">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-orange-100 to-amber-200/60 shadow-sm shadow-orange-200/40">
-                <CalendarClock className="w-4 h-4 text-orange-600" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">Expense Postponement</CardTitle>
-                <CardDescription className="text-[11px] text-orange-600/80 font-medium">
-                  Suggested deferrals to improve cash position
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-6 pb-5">
-            <div className="overflow-x-auto custom-scrollbar rounded-xl ring-1 ring-slate-200/70">
-              <table className="w-full text-[11px] border-collapse">
-                <thead>
-                  <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200/60">
-                    <th className="text-left p-3 font-bold text-slate-600">Month</th>
-                    <th className="text-left p-3 font-bold text-slate-600">Category</th>
-                    <th className="text-left p-3 font-bold text-slate-600">Project</th>
-                    <th className="text-right p-3 font-bold text-red-700">Amount</th>
-                    <th className="text-right p-3 font-bold text-emerald-700">New Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expensePostponement.map((e: any, i: number) => (
-                    <tr
-                      key={i}
-                      className={`border-b border-slate-100/80 transition-colors duration-150 ${
-                        i % 2 === 0 ? 'bg-white/80 hover:bg-emerald-50/40' : 'bg-slate-50/40 hover:bg-emerald-50/40'
-                      }`}
-                    >
-                      <td className="p-3 font-semibold text-slate-700">{e.month}</td>
-                      <td className="p-3 text-slate-600 font-medium">{e.category}</td>
-                      <td className="p-3 text-slate-500 font-medium max-w-[150px] truncate">{e.project}</td>
-                      <td className="text-right p-3 font-mono tabular-nums text-red-700 font-medium">{formatPKR(e.amount)}</td>
-                      <td className={`text-right p-3 font-mono tabular-nums font-bold ${e.newBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                        {formatPKR(e.newBalance)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-gradient-to-r from-orange-50 to-amber-50/50 font-bold text-[11px] border-t-2 border-orange-200/50">
-                    <td colSpan={3} className="p-3 text-orange-800">Total Deferral Opportunity</td>
-                    <td className="text-right p-3 font-mono tabular-nums text-red-700">
-                      {formatPKR(expensePostponement.reduce((s: number, e: any) => s + e.amount, 0))}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ═══ g) Monthly Insights Grid ═══ */}
-      {monthlyInsights.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200/60 shadow-sm shadow-slate-200/40">
-              <CircleDot className="w-4 h-4 text-slate-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 tracking-tight">Monthly Insights</h3>
-              <p className="text-[11px] text-slate-400 font-medium">{monthlyInsights.length} months analyzed</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {monthlyInsights.map((mi: any, i: number) => {
-              const st = statusConfig[mi.status] || statusConfig.healthy;
+      {/* ═══ 4. RECEIVABLE ANALYSIS ═══ */}
+      <Section icon={ArrowRight} title="Receivable Analysis" desc="Collections, aging, client follow-ups" defaultOpen={true} accent="from-orange-100 to-amber-200/60" accentShadow="shadow-orange-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatMini label="Collection Rate" value={`${ra.collectionRate || 0}%`} color={ra.collectionRate >= 80 ? 'text-emerald-700' : ra.collectionRate >= 50 ? 'text-amber-600' : 'text-red-600'} />
+          <StatMini label="Pending" value={formatPKRFull(ra.totalExpected || 0)} />
+          <StatMini label="Received" value={formatPKRFull(ra.totalReceived || 0)} color="text-emerald-700" />
+          <StatMini label="Avg Collection" value={`${ra.averageCollectionPeriodDays || 0} days`} />
+        </div>
+        {/* Aging */}
+        <div className="mb-4">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Receivables Aging</p>
+          <div className="grid grid-cols-4 gap-2">
+            {Object.entries(ra.agingBuckets || {}).map(([range, amt]: [string, number]) => {
+              const total = Object.values(ra.agingBuckets || {}).reduce((s: number, v: any) => s + v, 0);
+              const pct = total > 0 ? (amt / total) * 100 : 0;
+              const color = range === '90+' ? 'from-red-400 to-red-500' : range === '61-90' ? 'from-orange-400 to-orange-500' : range === '31-60' ? 'from-amber-400 to-amber-500' : 'from-sky-400 to-sky-500';
               return (
-                <div
-                  key={i}
-                  className="bg-gradient-to-br from-white to-slate-50/50 rounded-xl p-4 ring-1 ring-slate-200/60 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-                  style={{ animationDelay: `${i * 50}ms` }}
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <p className="text-xs font-bold text-slate-800">{mi.month}</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                      <Badge className={`text-[8px] px-1.5 py-0 font-semibold ${st.cls}`}>{st.label}</Badge>
-                    </div>
-                  </div>
-                  <ul className="space-y-1">
-                    {mi.insights.slice(0, 4).map((insight: string, j: number) => (
-                      <li key={j} className="text-[10px] text-slate-500 font-medium leading-relaxed flex items-start gap-1.5">
-                        <span className="mt-1.5 w-1 h-1 rounded-full bg-slate-300 flex-shrink-0" />
-                        {insight}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex items-center gap-3 mt-2.5 pt-2.5 border-t border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-medium">{mi.receiptCount} receipt{mi.receiptCount !== 1 ? 's' : ''}</span>
-                    <span className="text-[9px] text-slate-400 font-medium">{mi.expenseCount} expense{mi.expenseCount !== 1 ? 's' : ''}</span>
+                <div key={range} className="bg-slate-50 rounded-xl p-3 ring-1 ring-slate-200/60">
+                  <p className="text-[10px] text-slate-500 font-medium">{range} days</p>
+                  <p className="text-xs font-bold text-slate-800 mt-1">{formatPKRFull(amt)}</p>
+                  <div className="h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
+                    <div className={`h-full rounded-full bg-gradient-to-r ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-      )}
+        {/* Top Clients */}
+        {(ra.topPendingClients || []).length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Top Pending Clients</p>
+            <div className="space-y-2">
+              {(ra.topPendingClients || []).slice(0, 5).map((c: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl ring-1 ring-slate-200/60 bg-white/70 hover:shadow-sm transition-all">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{c.client}</p>
+                    {c.overdueMonths?.length > 0 && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[9px] text-red-500 font-medium">{c.overdueMonths.length} overdue</span>
+                        {c.overdueMonths.slice(0, 2).map((m: string, j: number) => (
+                          <Badge key={j} className="text-[8px] px-1 py-0 bg-red-50 text-red-600">{m}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-red-700 font-mono">{formatPKR(c.pending)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 5. EXPENSE ANALYSIS ═══ */}
+      <Section icon={BarChart3} title="Expense Analysis" desc="OPEX, project costs, anomalies" accent="from-rose-100 to-red-200/60" accentShadow="shadow-rose-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatMini label="Total Expenses" value={formatPKRFull(ea.totalExpenses || 0)} />
+          <StatMini label="Operational" value={formatPKRFull(ea.totalOpex || 0)} sub={`${ea.opexPctOfTotal || 0}% of total`} />
+          <StatMini label="Project Costs" value={formatPKRFull(ea.totalProjectCosts || 0)} />
+          <StatMini label="Op Efficiency" value={`${((ea.operationalEfficiencyRatio || 0) * 100).toFixed(1)}%`} sub="OPEX / Revenue" />
+        </div>
+        {/* Trend */}
+        <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-slate-50 ring-1 ring-slate-200/60">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Expense Trend:</span>
+          {ea.expenseTrend === 'increasing' && <Badge className="bg-red-100/80 text-red-700 text-[10px]"><Flame className="w-3 h-3 mr-1" />Increasing</Badge>}
+          {ea.expenseTrend === 'decreasing' && <Badge className="bg-emerald-100/80 text-emerald-700 text-[10px]"><Snowflake className="w-3 h-3 mr-1" />Decreasing</Badge>}
+          {ea.expenseTrend === 'stable' && <Badge className="bg-sky-100/80 text-sky-700 text-[10px]"><Activity className="w-3 h-3 mr-1" />Stable</Badge>}
+        </div>
+        {/* Top Categories */}
+        <div className="mb-4">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Top Spending Categories</p>
+          {(ea.topCategories || []).slice(0, 7).map((c: any, i: number) => {
+            const maxAmt = (ea.topCategories?.[0]?.amount || 1);
+            return (
+              <div key={i} className="flex items-center gap-3 mb-2">
+                <span className="text-[11px] text-slate-600 font-medium w-32 truncate">{c.category}</span>
+                <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-red-500" style={{ width: `${(c.amount / maxAmt) * 100}%` }} />
+                </div>
+                <span className="text-[11px] font-bold text-slate-800 font-mono w-24 text-right">{formatPKR(c.amount)}</span>
+              </div>
+            );
+          })}
+        </div>
+        {/* Anomalies */}
+        {(ea.costAnomalies || []).length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wider mb-2 flex items-center gap-1"><AlertOctagon className="w-3 h-3" /> Cost Anomalies</p>
+            <div className="space-y-1.5">
+              {(ea.costAnomalies || []).map((a: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 text-[11px] p-2 rounded-lg bg-red-50/50 ring-1 ring-red-200/40">
+                  <span className="font-semibold text-slate-700">{a.month}</span>
+                  <span className="text-red-600 font-bold">+{a.spikePct}%</span>
+                  <span className="text-slate-500">vs avg of {formatPKRFull(a.average)}</span>
+                  <span className="ml-auto font-bold text-slate-800">{formatPKRFull(a.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 6. BUDGET ADHERENCE ═══ */}
+      <Section icon={Target} title="Budget Adherence" desc="Budget vs actual per category" accent="from-blue-100 to-indigo-200/60" accentShadow="shadow-blue-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatMini label="Overall Adherence" value={`${ba.overallAdherencePct || 0}%`} color={ba.overallAdherencePct >= 90 ? 'text-emerald-700' : ba.overallAdherencePct >= 70 ? 'text-amber-600' : 'text-red-600'} />
+          <StatMini label="On Track" value={`${ba.onTrackCount || 0}`} color="text-emerald-700" />
+          <StatMini label="Overspent" value={`${ba.overspentCount || 0}`} color="text-red-700" />
+          <StatMini label="Caution" value={`${ba.cautionCount || 0}`} color="text-amber-600" />
+        </div>
+        <div className="space-y-2">
+          {(ba.categories || []).map((b: any, i: number) => {
+            const sc = STATUS_COLORS[b.status] || STATUS_COLORS['caution'];
+            const pct = b.budgeted > 0 ? Math.min((b.actual / b.budgeted) * 100, 150) : 0;
+            return (
+              <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl ring-1 ring-slate-200/60 bg-white/70">
+                <span className="text-[11px] font-semibold text-slate-700 w-28 truncate capitalize">{b.category}</span>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] text-slate-400">{formatPKRFull(b.actual)} / {formatPKRFull(b.budgeted)}</span>
+                    <span className={`text-[9px] font-bold ${b.variancePct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{b.variancePct >= 0 ? '+' : ''}{b.variancePct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${pct > 100 ? 'bg-red-400' : pct > 80 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                </div>
+                <Badge className={`text-[9px] px-1.5 py-0 ${sc.bg} border-0`}>{b.status}</Badge>
+              </div>
+            );
+          })}
+        </div>
+        {(ba.mostOverspent || ba.mostUnderSpent) && (
+          <div className="flex gap-3 mt-3">
+            {ba.mostOverspent && (
+              <div className="flex-1 p-3 rounded-xl bg-red-50/50 ring-1 ring-red-200/40">
+                <p className="text-[9px] text-red-600 font-semibold uppercase">Most Overspent</p>
+                <p className="text-[11px] font-bold text-slate-800 mt-0.5 capitalize">{ba.mostOverspent.category}</p>
+                <p className="text-[10px] text-red-600">{ba.mostOverspent.variancePct}%</p>
+              </div>
+            )}
+            {ba.mostUnderSpent && (
+              <div className="flex-1 p-3 rounded-xl bg-emerald-50/50 ring-1 ring-emerald-200/40">
+                <p className="text-[9px] text-emerald-600 font-semibold uppercase">Most Under-Spent</p>
+                <p className="text-[11px] font-bold text-slate-800 mt-0.5 capitalize">{ba.mostUnderSpent.category}</p>
+                <p className="text-[10px] text-emerald-600">+{ba.mostUnderSpent.variancePct}%</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 7. INVOICE HEALTH ═══ */}
+      <Section icon={FileSpreadsheet} title="Invoice Health" desc="Outstanding, overdue, collections forecast" accent="from-cyan-100 to-teal-200/60" accentShadow="shadow-cyan-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatMini label="Outstanding" value={formatPKRFull(ih.totalOutstanding || 0)} />
+          <StatMini label="Overdue" value={formatPKRFull(ih.totalOverdue || 0)} color="text-red-700" />
+          <StatMini label="Cash Tied Up" value={formatPKRFull(ih.cashTiedUp || 0)} color="text-amber-600" />
+          <StatMini label="Avg Days to Pay" value={`${ih.avgDaysToPay || 0}d`} />
+        </div>
+        <div className="mb-3">
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Projected Collections</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-emerald-50/50 rounded-xl p-3 ring-1 ring-emerald-200/40 text-center">
+              <p className="text-[9px] text-emerald-600 font-semibold">Next 30 Days</p>
+              <p className="text-sm font-extrabold text-emerald-700 mt-1">{formatPKR(ih.projectedCollectionsNext30Days || 0)}</p>
+            </div>
+            <div className="bg-sky-50/50 rounded-xl p-3 ring-1 ring-sky-200/40 text-center">
+              <p className="text-[9px] text-sky-600 font-semibold">Next 60 Days</p>
+              <p className="text-sm font-extrabold text-sky-700 mt-1">{formatPKR(ih.projectedCollectionsNext60Days || 0)}</p>
+            </div>
+            <div className="bg-purple-50/50 rounded-xl p-3 ring-1 ring-purple-200/40 text-center">
+              <p className="text-[9px] text-purple-600 font-semibold">Next 90 Days</p>
+              <p className="text-sm font-extrabold text-purple-700 mt-1">{formatPKR(ih.projectedCollectionsNext90Days || 0)}</p>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* ═══ 8. GOAL PROGRESS ═══ */}
+      <Section icon={Target} title="Goal Progress" desc="Track financial goals and targets" accent="from-teal-100 to-cyan-200/60" accentShadow="shadow-teal-200/40">
+        {gp.length === 0 ? (
+          <p className="text-xs text-slate-400 py-4 text-center">No active goals set. Go to Goals tab to create targets.</p>
+        ) : (
+          <div className="space-y-3">
+            {gp.map((g: any, i: number) => {
+              const sc = STATUS_COLORS[g.status] || STATUS_COLORS['behind'];
+              return (
+                <div key={i} className="p-3.5 rounded-xl ring-1 ring-slate-200/60 bg-white/70">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{g.title}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">
+                        {g.targetType} — Target: {g.targetDate} — {g.daysRemaining}d remaining
+                        {g.isOverdue && <span className="text-red-600 font-semibold ml-1">OVERDUE</span>}
+                      </p>
+                    </div>
+                    <Badge className={`text-[9px] px-1.5 py-0 ${sc.bg} border-0`}>{g.status}</Badge>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Progress value={Math.min(g.progress, 100)} className="h-2 flex-1" />
+                    <span className="text-[10px] font-bold text-slate-700 w-10 text-right">{g.progress.toFixed(0)}%</span>
+                  </div>
+                  <div className="flex justify-between mt-1.5 text-[9px] text-slate-400">
+                    <span>Current: {formatPKRFull(g.currentAmount)}</span>
+                    <span>Target: {formatPKRFull(g.targetAmount)}</span>
+                    <span>Need: {formatPKRFull(g.requiredMonthlyContribution)}/mo</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 9. RECURRING IMPACT ═══ */}
+      <Section icon={Repeat} title="Recurring Expense Impact" desc="Fixed monthly commitments" accent="from-fuchsia-100 to-pink-200/60" accentShadow="shadow-fuchsia-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatMini label="Monthly Recurring" value={formatPKRFull(ri.totalMonthlyRecurring || 0)} />
+          <StatMini label="Yearly Recurring" value={formatPKRFull(ri.totalYearlyRecurring || 0)} />
+          <StatMini label="% of Avg Expenses" value={`${ri.recurringPctOfAvgExpenses || 0}%`} color={ri.recurringPctOfAvgExpenses > 70 ? 'text-red-600' : 'text-slate-800'} />
+          <StatMini label="6-Month Projection" value={formatPKRFull(ri.projectedRecurring6Months || 0)} />
+        </div>
+        {(ri.largestItems || []).length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Top Recurring Items</p>
+            <div className="space-y-1.5">
+              {(ri.largestItems || []).map((item: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 ring-1 ring-slate-200/50">
+                  <span className="text-[11px] font-medium text-slate-700 flex-1">{item.title}</span>
+                  <Badge className="text-[8px] px-1.5 py-0 bg-slate-100 text-slate-600">{item.frequency}</Badge>
+                  <span className="text-[11px] font-bold text-slate-800 font-mono">{formatPKR(item.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 10. TREND SIGNALS ═══ */}
+      <Section icon={Activity} title="Trend Signals" desc="3-month and 6-month movement patterns" accent="from-indigo-100 to-violet-200/60" accentShadow="shadow-indigo-200/40">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="bg-slate-50 rounded-xl p-3 ring-1 ring-slate-200/60">
+            <p className="text-[9px] text-slate-500 font-semibold">3M Receipt Trend</p>
+            <p className={`text-sm font-extrabold ${(ts.threeMonth?.receiptTrendPct || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {(ts.threeMonth?.receiptTrendPct || 0) >= 0 ? '+' : ''}{ts.threeMonth?.receiptTrendPct || 0}%
+            </p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-3 ring-1 ring-slate-200/60">
+            <p className="text-[9px] text-slate-500 font-semibold">3M Expense Trend</p>
+            <p className={`text-sm font-extrabold ${(ts.threeMonth?.expenseTrendPct || 0) >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {(ts.threeMonth?.expenseTrendPct || 0) >= 0 ? '+' : ''}{ts.threeMonth?.expenseTrendPct || 0}%
+            </p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-3 ring-1 ring-slate-200/60">
+            <p className="text-[9px] text-slate-500 font-semibold">Burn Trajectory</p>
+            <Badge className={`text-[10px] mt-1 ${ts.burnTrajectory === 'accelerating' ? 'bg-red-100/80 text-red-700' : ts.burnTrajectory === 'decelerating' ? 'bg-emerald-100/80 text-emerald-700' : 'bg-sky-100/80 text-sky-700'}`}>
+              {ts.burnTrajectory || 'stable'}
+            </Badge>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-3 ring-1 ring-slate-200/60">
+            <p className="text-[9px] text-slate-500 font-semibold">Best Month</p>
+            <p className="text-[11px] font-bold text-emerald-600">{ts.bestMonth?.month || 'N/A'}</p>
+            <p className="text-[9px] text-slate-400">{formatPKRFull(ts.bestMonth?.netCashFlow || 0)}</p>
+          </div>
+        </div>
+        {/* Seasonal */}
+        {(ts.seasonalPatterns || []).length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Seasonal Patterns</p>
+            <div className="grid grid-cols-4 gap-2">
+              {(ts.seasonalPatterns || []).map((q: any, i: number) => (
+                <div key={i} className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-3 ring-1 ring-slate-200/60 text-center">
+                  <p className="text-[11px] font-bold text-slate-700">{q.quarter}</p>
+                  <p className="text-[9px] text-emerald-600 mt-1">In: {formatPKR(q.avgReceipts)}</p>
+                  <p className="text-[9px] text-red-500">Out: {formatPKR(q.avgExpenses)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 11. RISK MATRIX ═══ */}
+      <Section icon={AlertOctagon} title="Risk Matrix" desc={`${rm.length} identified risk(s)`} defaultOpen={rm.length > 0} accent="from-red-100 to-rose-200/60" accentShadow="shadow-red-200/40">
+        {rm.length === 0 ? (
+          <div className="text-center py-4">
+            <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+            <p className="text-xs text-slate-500 font-medium">No significant risks detected</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {rm.map((r: any, i: number) => {
+              const sv = SEV[r.severity] || SEV.medium;
+              return (
+                <div key={i} className={`rounded-xl ring-1 ${sv.border} ${sv.bg} p-4`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`p-1.5 rounded-lg bg-white/80 shadow-sm flex-shrink-0`}>
+                      {r.severity === 'critical' ? <ShieldAlert className={`w-4 h-4 ${sv.icon}`} /> :
+                       r.severity === 'high' ? <AlertTriangle className={`w-4 h-4 ${sv.icon}`} /> :
+                       <Info className={`w-4 h-4 ${sv.icon}`} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-slate-800">{r.title}</h4>
+                        <Badge className={`text-[9px] px-1.5 py-0 ${sv.bg} ${sv.text} border ${sv.border} font-semibold`}>{r.severity}</Badge>
+                        <Badge className="text-[9px] px-1.5 py-0 bg-slate-100 text-slate-600">Impact: {formatPKRFull(r.impact)}</Badge>
+                        <Badge className="text-[9px] px-1.5 py-0 bg-white/80 text-slate-500">Prob: {r.probability}</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1">{r.description}</p>
+                      <div className="mt-2">
+                        <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Mitigation Steps</p>
+                        <ul className="space-y-0.5">
+                          {(r.mitigationSteps || []).map((step: string, j: number) => (
+                            <li key={j} className="text-[10px] text-slate-600 flex items-start gap-1.5">
+                              <span className="mt-1.5 w-1 h-1 rounded-full bg-slate-400 flex-shrink-0" />
+                              {step}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 12. ACTION PLAN ═══ */}
+      <Section icon={Rocket} title="Action Plan" desc={`${ap.length} prioritized action(s)`} defaultOpen={ap.length > 0} accent="from-amber-100 to-orange-200/60" accentShadow="shadow-amber-200/40">
+        {ap.length === 0 ? (
+          <div className="text-center py-4">
+            <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+            <p className="text-xs text-slate-500 font-medium">Everything looks good! No actions needed right now.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {ap.map((a: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl ring-1 ring-slate-200/60 bg-white/70 hover:shadow-sm transition-all">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[11px] font-extrabold ${i < 2 ? 'bg-red-100 text-red-700' : i < 4 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                  #{a.priority}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-800">{a.title}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{a.description}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Badge className={`text-[9px] px-1.5 py-0 ${EFFORT_COLORS[a.effort || 'medium']}`}>{a.effort}</Badge>
+                  <Badge className="text-[9px] px-1.5 py-0 bg-slate-100 text-slate-600 flex items-center gap-1">
+                    <Timer className="w-2.5 h-2.5" /> {a.deadline}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ 13. MONTHLY DEEP DIVE ═══ */}
+      <Section icon={CalendarClock} title="Monthly Deep Dive" desc={`${mdd.length} months analyzed in detail`} accent="from-slate-100 to-slate-200/60" accentShadow="shadow-slate-200/40">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {mdd.map((m: any, i: number) => (
+            <div key={i} className={`rounded-xl p-4 ring-1 shadow-sm ${m.status === 'critical' ? 'ring-red-200/60 bg-red-50/30' : m.status === 'warning' ? 'ring-amber-200/60 bg-amber-50/30' : 'ring-slate-200/60 bg-white/70'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-slate-800">{m.month}</p>
+                <Badge className={`text-[8px] px-1.5 py-0 ${m.status === 'critical' ? 'bg-red-100 text-red-700' : m.status === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{m.status}</Badge>
+              </div>
+              <div className="space-y-1 text-[10px] text-slate-600">
+                <div className="flex justify-between"><span>Opening</span><span className="font-mono font-medium">{formatPKR(m.openingBalance || 0)}</span></div>
+                <div className="flex justify-between"><span>Receipts</span><span className="font-mono font-medium text-emerald-600">+{formatPKR(m.totalReceipts || 0)}</span></div>
+                <div className="flex justify-between"><span>Expenses</span><span className="font-mono font-medium text-red-600">-{formatPKR(m.totalExpenses || 0)}</span></div>
+                <div className="flex justify-between border-t border-slate-100 pt-1"><span className="font-semibold">Closing</span><span className={`font-mono font-bold ${(m.closingBalance || 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatPKR(m.closingBalance || 0)}</span></div>
+              </div>
+              {(m.receiptSources?.length > 0 || m.topExpenseCategories?.length > 0) && (
+                <div className="mt-2 pt-2 border-t border-slate-100 space-y-1">
+                  {m.receiptSources?.slice(0, 2).map((s: any, j: number) => (
+                    <p key={j} className="text-[9px] text-slate-400 truncate">+ {formatPKR(s.amount)} — {s.source}</p>
+                  ))}
+                  {m.recommendations?.length > 0 && (
+                    <p className="text-[9px] text-violet-600 font-medium mt-1">{m.recommendations[0]}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Section>
     </div>
   );
 }

@@ -166,15 +166,19 @@ async function generatePDFReport(year: string | null) {
   <title>${appName} - Cash Flow Report</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; padding: 40px; font-size: 12px; line-height: 1.5; }
+    @page { 
+      size: landscape; 
+      margin: 15mm; 
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; padding: 15mm; font-size: 12px; line-height: 1.5; }
     .header { text-align: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; }
     .header h1 { font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
     .header p { font-size: 13px; color: #64748b; }
     .meta { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 11px; color: #94a3b8; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    th { background: #f1f5f9; padding: 10px 8px; text-align: right; font-size: 11px; font-weight: 700; color: #475569; border-bottom: 2px solid #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 10px; }
+    th { background: #f1f5f9; padding: 8px 6px; text-align: right; font-size: 10px; font-weight: 700; color: #475569; border-bottom: 2px solid #cbd5e1; }
     th:first-child, th:nth-child(8) { text-align: left; }
-    td { padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
+    td { padding: 6px; border-bottom: 1px solid #f1f5f9; font-size: 10px; }
     .num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'SF Mono', 'Cascadia Code', monospace; }
     .center { text-align: center; }
     .green { color: #059669; font-weight: 600; }
@@ -196,10 +200,18 @@ async function generatePDFReport(year: string | null) {
     .shortfall-card .value { display: block; font-size: 16px; font-weight: 800; color: #0f172a; }
     .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
     @media print {
-      body { padding: 20px; }
+      @page {
+        size: landscape;
+        margin: 15mm;
+      }
+      body { 
+        padding: 15mm; 
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
       .no-print { display: none !important; }
       table { page-break-inside: avoid; }
-      .shortfall-grid { grid-template-columns: repeat(2, 1fr); }
+      .shortfall-grid { grid-template-columns: repeat(4, 1fr); }
     }
   </style>
 </head>
@@ -259,7 +271,7 @@ async function generatePDFReport(year: string | null) {
   return new NextResponse(html, {
     headers: {
       'Content-Type': 'text/html',
-      'Content-Disposition': `attachment; filename=cash-flow-report-FY${filterYear}-${filterYear + 1}.html`,
+      'Content-Disposition': `attachment; filename="cash-flow-report-FY${filterYear}-${filterYear + 1}-landscape.html"`,
     },
   });
 }

@@ -305,16 +305,251 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Clear all existing data
+    // 5. Find section headers early for validation
+    const bankHeaderIdx = findSectionHeader(rows, 'BANK ACCOUNTS');
+    const receiptHeaderIdx = findSectionHeader(rows, 'EXPECTED RECEIPTS');
+    const expenseHeaderIdx = findSectionHeader(rows, 'EXPECTED EXPENSES');
+
+    // ─── VALIDATION: Check for errors before importing ───
+    const validationErrors: { row: number; column: string; error: string; value: string; suggestion: string }[] = [];
+
+    // Check if bank section exists
+    if (bankHeaderIdx < 0) {
+      validationErrors.push({
+        row: 0,
+        column: 'C',
+        error: 'Missing "BANK ACCOUNTS" section',
+        value: '',
+        suggestion: 'Add a row with "BANK ACCOUNTS" in Column C after the period row',
+      });
+    }
+
+    // Check if receipts section exists
+    if (receiptHeaderIdx < 0) {
+      validationErrors.push({
+        row: 0,
+        column: 'C',
+        error: 'Missing "EXPECTED RECEIPTS" section',
+        value: '',
+        suggestion: 'Add a row with "EXPECTED RECEIPTS" in Column C',
+      });
+    }
+
+    // Check if expenses section exists
+    if (expenseHeaderIdx < 0) {
+      validationErrors.push({
+        row: 0,
+        column: 'C',
+        error: 'Missing "EXPECTED EXPENSES" section',
+        value: '',
+        suggestion: 'Add a row with "EXPECTED EXPENSES" in Column C',
+      });
+    }
+
+    // Check month column data for non-numeric values
+    let dataRowStart = Math.max(bankHeaderIdx + 1, 0);
+    for (let rowIdx = dataRowStart; rowIdx < rows.length; rowIdx++) {
+      const row = rows[rowIdx];
+      if (!row) continue;
+      const colC = getStringValue(row[2]);
+      if (!colC || colC === '-') continue;
+      // Skip header/total rows
+      if (colC.toLowerCase().includes('total') || colC.toLowerCase().includes('opening') || colC.toLowerCase().includes('forecast')) continue;
+
+      for (const mc of monthColumns) {
+        const cellVal = row[mc.colIndex];
+        const cellStr = getStringValue(cellVal);
+        if (cellStr && cellStr !== '' && cellStr !== '-') {
+          const numVal = getNumericValue(cellVal);
+          if (numVal === 0 && cellStr !== '0' && cellStr !== '0.00') {
+            validationErrors.push({
+              row: rowIdx + 1,
+              column: `${MONTH_FULL[mc.month - 1]} ${mc.year}`,
+              error: 'Non-numeric value in data cell',
+              value: cellStr,
+              suggestion: `Row ${rowIdx + 1}, ${colC}: Replace "${cellStr}" with a number like 500000`,
+            });
+          }
+        }
+      }
+    }
+
+    // ─── ENHANCED VALIDATION: Detailed row/column-level checks ───
+    // Helper: convert column index to Excel column letter
+    function colLetter(idx: number): string {
+      let s = '';
+      let n = idx;
+      while (n >= 0) {
+        s = String.fromCharCode(65 + (n % 26)) + s;
+        n = Math.floor(n / 26) - 1;
+      }
+      return s;
+    }
+
+    // Check 1: Validate that month columns contain numeric data in receipt/expense rows
+    if (receiptHeaderIdx >= 0) {
+      for (let rowIdx = receiptHeaderIdx + 1; rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
+        const clientName = getStringValue(row[2]);
+        if (!clientName || clientName === '-' || clientName.toLowerCase().includes('total') || clientName.toLowerCase().includes('expected expenses')) break;
+
+        // Check for missing/empty category name (Column C)
+        if (clientName.trim() === '') {
+          validationErrors.push({
+            row: rowIdx + 1,
+            column: 'C',
+            error: 'Missing client/project name in receipt row',
+            value: '',
+            suggestion: `Row ${rowIdx + 1}: Enter a client or project name in Column C`,
+          });
+        }
+
+        for (const mc of monthColumns) {
+          const cellVal = row[mc.colIndex];
+          const cellStr = getStringValue(cellVal);
+          if (cellStr && cellStr !== '' && cellStr !== '-') {
+            // Check for negative amounts
+            const numVal = getNumericValue(cellVal);
+            if (typeof cellVal === 'string' && cellVal.trim().startsWith('-') && numVal !== 0) {
+              validationErrors.push({
+                row: rowIdx + 1,
+                column: colLetter(mc.colIndex),
+                error: 'Negative amount in receipt row (receipts should not be negative)',
+                value: cellStr,
+                suggestion: `Row ${rowIdx + 1}, Column ${colLetter(mc.colIndex)} (${MONTH_FULL[mc.month - 1]} ${mc.year}): Negative receipt amount "${cellStr}" for "${clientName}". Verify the amount is correct.`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (expenseHeaderIdx >= 0) {
+      for (let rowIdx = expenseHeaderIdx + 1; rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
+        const categoryName = getStringValue(row[2]);
+        if (!categoryName || categoryName === '-' || categoryName.toLowerCase().includes('total') || categoryName.toLowerCase().includes('forecast')) break;
+        if (categoryName.toLowerCase().includes('total')) continue;
+
+        // Check for missing/empty category name (Column C)
+        if (categoryName.trim() === '') {
+          validationErrors.push({
+            row: rowIdx + 1,
+            column: 'C',
+            error: 'Missing expense category name',
+            value: '',
+            suggestion: `Row ${rowIdx + 1}: Enter an expense category name in Column C`,
+          });
+        }
+
+        for (const mc of monthColumns) {
+          const cellVal = row[mc.colIndex];
+          const cellStr = getStringValue(cellVal);
+          if (cellStr && cellStr !== '' && cellStr !== '-') {
+            // Check for negative amounts in expense rows
+            const numVal = getNumericValue(cellVal);
+            if (typeof cellVal === 'string' && cellVal.trim().startsWith('-') && numVal !== 0) {
+              validationErrors.push({
+                row: rowIdx + 1,
+                column: colLetter(mc.colIndex),
+                error: 'Negative amount in expense row (expenses should be positive values)',
+                value: cellStr,
+                suggestion: `Row ${rowIdx + 1}, Column ${colLetter(mc.colIndex)} (${MONTH_FULL[mc.month - 1]} ${mc.year}): Negative expense amount "${cellStr}" for "${categoryName}". Use positive values for expenses.`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Check 2: Validate bank account section has at least one account with a valid balance
+    if (bankHeaderIdx >= 0) {
+      let bankAccountsFound = 0;
+      let bankWithZeroBalance = 0;
+      for (let rowIdx = bankHeaderIdx + 1; rowIdx <= bankHeaderIdx + 5 && rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
+        const detail = getStringValue(row[2]);
+        if (!detail || detail === '-' || detail.toLowerCase().includes('opening') || detail === '') continue;
+        if (detail.toLowerCase().includes('opening')) break;
+
+        const lastMonthCol = monthColumns.length > 0 ? monthColumns[monthColumns.length - 1].colIndex : 14;
+        const balanceCol = lastMonthCol + 1;
+        const balanceFromRemarks = getNumericValue(row[balanceCol]);
+        const balanceFromLastMonth = getNumericValue(row[lastMonthCol]);
+        const balance = balanceFromRemarks > 0 ? balanceFromRemarks : balanceFromLastMonth;
+
+        bankAccountsFound++;
+        if (balance === 0) {
+          bankWithZeroBalance++;
+          validationErrors.push({
+            row: rowIdx + 1,
+            column: colLetter(balanceFromRemarks > 0 ? balanceCol : lastMonthCol),
+            error: 'Bank account has zero balance — verify the balance column',
+            value: detail,
+            suggestion: `Row ${rowIdx + 1}: Bank account "${detail}" has no balance. Ensure the balance is in Column ${colLetter(balanceFromRemarks > 0 ? balanceCol : lastMonthCol)}.`,
+          });
+        }
+      }
+      if (bankAccountsFound === 0) {
+        validationErrors.push({
+          row: bankHeaderIdx + 2,
+          column: 'C',
+          error: 'No bank account entries found in BANK ACCOUNTS section',
+          value: '',
+          suggestion: `After the "BANK ACCOUNTS" header (Row ${bankHeaderIdx + 1}), add bank account entries in Column C with their balances.`,
+        });
+      }
+    }
+
+    // Check 3: Validate month columns have at least some numeric data
+    for (const mc of monthColumns) {
+      let hasAnyData = false;
+      let hasAnyNumeric = false;
+      for (let rowIdx = Math.max(receiptHeaderIdx + 1, expenseHeaderIdx + 1, bankHeaderIdx + 1); rowIdx < rows.length; rowIdx++) {
+        const row = rows[rowIdx];
+        if (!row) continue;
+        const cellVal = row[mc.colIndex];
+        const cellStr = getStringValue(cellVal);
+        if (cellStr && cellStr !== '' && cellStr !== '-') {
+          hasAnyData = true;
+          const numVal = getNumericValue(cellVal);
+          if (numVal !== 0 || cellStr === '0' || cellStr === '0.00') {
+            hasAnyNumeric = true;
+          }
+        }
+      }
+      if (hasAnyData && !hasAnyNumeric) {
+        validationErrors.push({
+          row: 0,
+          column: colLetter(mc.colIndex),
+          error: `Column ${colLetter(mc.colIndex)} (${MONTH_FULL[mc.month - 1]} ${mc.year}) contains data but no valid numeric values`,
+          value: '',
+          suggestion: `Column ${colLetter(mc.colIndex)} should contain numeric amounts. Check that cells contain numbers, not text.`,
+        });
+      }
+    }
+
+    // If there are validation errors, return them WITHOUT importing
+    if (validationErrors.length > 0) {
+      return NextResponse.json({
+        success: false,
+        validationErrors,
+        errorCount: validationErrors.length,
+        message: `Found ${validationErrors.length} error(s) in your Excel file. Please fix them and try again.`,
+      }, { status: 422 });
+    }
+
+    // 6. Clear all existing data
     await db.receipt.deleteMany({});
     await db.expense.deleteMany({});
     await db.bankAccount.deleteMany({});
     await db.category.deleteMany({});
     await db.projectClient.deleteMany({});
 
-    // 6. Extract and insert bank accounts
-    // Find bank section - look for "Bank Accounts" header, then bank rows follow
-    const bankHeaderIdx = findSectionHeader(rows, 'BANK ACCOUNTS');
+    // 7. Extract and insert bank accounts
     const bankAccountData: Array<{
       bankName: string;
       accountName: string;
@@ -368,8 +603,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 7. Extract and insert receipts
-    // Find the receipts section header
-    const receiptHeaderIdx = findSectionHeader(rows, 'EXPECTED RECEIPTS');
     const receiptData: Array<{
       date: Date;
       month: number;
@@ -425,8 +658,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 8. Extract and insert expenses
-    // Find the expenses section header
-    const expenseHeaderIdx = findSectionHeader(rows, 'EXPECTED EXPENSES');
     const expenseData: Array<{
       date: Date;
       month: number;
@@ -577,7 +808,12 @@ export async function POST(req: NextRequest) {
       create: { key: 'last_import_date', value: new Date().toISOString() },
     });
 
-    // 12. Return JSON summary
+    // 12. Return JSON summary with warnings
+    const warnings: string[] = [];
+    if (bankAccountsCount === 0) warnings.push('No bank accounts detected — set up bank accounts in Settings');
+    if (receiptsCount === 0) warnings.push('No receipts detected — add expected receipt data');
+    if (expensesCount === 0) warnings.push('No expenses detected — add expected expense data');
+
     return NextResponse.json({
       success: true,
       bankAccounts: bankAccountsCount,
@@ -587,6 +823,7 @@ export async function POST(req: NextRequest) {
       projects: projectsCount,
       financialYear: periodLabel,
       periodMonths: periodMonths.length,
+      warnings,
     });
   } catch (error) {
     console.error('Import API error:', error);

@@ -42,6 +42,7 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [importDragOver, setImportDragOver] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
@@ -193,6 +194,7 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
     setImporting(true);
     setImportResult(null);
     setImportError(null);
+    setValidationErrors([]);
 
     try {
       const formData = new FormData();
@@ -202,10 +204,17 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
 
       if (data.success) {
         setImportResult(data);
+        if (data.warnings && data.warnings.length > 0) {
+          toast.warning(`${data.warnings.length} warning(s)`, { description: data.warnings.join('. ') });
+        }
         toast.success(`Excel imported successfully! ${data.receipts} receipts, ${data.expenses} expenses, ${data.bankAccounts} bank accounts`);
         reloadCategories();
         reloadProjects();
         onRefresh();
+      } else if (data.validationErrors) {
+        setImportError(`Found ${data.errorCount} error(s) in your Excel file`);
+        setValidationErrors(data.validationErrors);
+        toast.error(`Found ${data.errorCount} validation error(s)`);
       } else {
         setImportError(data.error || 'Import failed');
         toast.error(data.error || 'Import failed');
@@ -654,6 +663,33 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                       <p className="text-sm font-semibold text-red-800">Import Failed</p>
                     </div>
                     <p className="text-[11px] text-red-700">{importError}</p>
+                    {validationErrors.length > 0 && (
+                      <div className="mt-3 p-4 rounded-xl bg-red-100/50 ring-1 ring-red-200/70 max-h-80 overflow-y-auto">
+                        <p className="text-xs font-bold text-red-700 mb-2">Validation Errors ({validationErrors.length}):</p>
+                        <div className="space-y-2">
+                          {validationErrors.map((err: any, i: number) => (
+                            <div key={i} className="rounded-lg bg-white/70 ring-1 ring-red-200/50 p-2.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {err.row > 0 && (
+                                  <span className="font-mono bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Row {err.row}</span>
+                                )}
+                                {err.column && (
+                                  <span className="font-mono bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold">Col {err.column}</span>
+                                )}
+                                <span className="text-[11px] text-red-700 font-medium">{err.error}</span>
+                              </div>
+                              {err.value && (
+                                <p className="text-[10px] text-red-500 mt-1 ml-1">Found: "{err.value}"</p>
+                              )}
+                              {err.suggestion && (
+                                <p className="text-[10px] text-emerald-700 mt-1 ml-1 font-medium">Fix: {err.suggestion}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-red-500 mt-3 font-medium">Fix these errors in your Excel file and re-import.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

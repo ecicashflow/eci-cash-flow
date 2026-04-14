@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Plus, X, Calculator, RotateCcw, ArrowRightLeft,
   TrendingUp, TrendingDown, Wallet, ShieldAlert, CheckCircle,
   ArrowDownCircle, ArrowUpCircle, Clock, BarChart3,
-  AlertTriangle, Lightbulb, Loader2
+  AlertTriangle, Lightbulb, Loader2, Sparkles
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -108,6 +108,8 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
   const [results, setResults] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoLoading, setAutoLoading] = useState(false);
+  const hasAutoLoaded = useRef(false);
 
   // Available months derived from date range
   const startYear = startDate ? new Date(startDate).getFullYear() : 2026;
@@ -150,6 +152,66 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
     setResults(null);
     setError(null);
   }, []);
+
+  const generateAutoScenarios = useCallback(async () => {
+    setAutoLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/what-if/auto-scenarios?startDate=${startDate}&endDate=${endDate}`);
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      if (data.scenarios && data.scenarios.length > 0) {
+        const newScenarios: Scenario[] = data.scenarios.map((s: any) => ({
+          id: s.id || `auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: s.type === 'decrease_expense' ? 'decrease_expense' : s.type,
+          label: s.label,
+          month: s.month,
+          year: s.year,
+          amount: s.amount,
+          description: s.description || '',
+          adjustment: s.adjustment,
+        }));
+        setScenarios(newScenarios);
+        // Auto-calculate impact immediately with these AI-generated scenarios
+        const apiScenarios = newScenarios.map(s => ({
+          type: s.type === 'increase_receipt' || s.type === 'decrease_expense' ? 'change_amount' : s.type,
+          month: s.month,
+          year: s.year,
+          amount: s.amount,
+          description: s.description,
+          adjustment: s.type === 'increase_receipt' ? 'increase_receipt' : s.type === 'decrease_expense' ? 'decrease_expense' : undefined,
+        }));
+        // Trigger auto-calculation
+        try {
+          const calcRes = await fetch('/api/what-if', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ startDate, endDate, scenarios: apiScenarios }),
+          });
+          if (calcRes.ok) {
+            const calcData = await calcRes.json();
+            setResults(calcData);
+          }
+        } catch {
+          // Auto-calculation failed — scenarios are still added, user can calculate manually
+        }
+      } else {
+        setError('No auto-scenarios could be generated. Add data first.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to generate AI scenarios');
+    } finally {
+      setAutoLoading(false);
+    }
+  }, [startDate, endDate]);
+
+  // Auto-generate scenarios on mount (only once, when dates are available)
+  useEffect(() => {
+    if (startDate && endDate && !hasAutoLoaded.current) {
+      hasAutoLoaded.current = true;
+      generateAutoScenarios();
+    }
+  }, [startDate, endDate, generateAutoScenarios]);
 
   // Debounced calculate
   const calculateImpact = useCallback(async () => {
@@ -234,16 +296,28 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
       {/* ═══ a) Scenario Builder ═══ */}
       <Card className="shadow-md border-slate-200/60 hover:shadow-lg transition-shadow duration-300">
         <CardHeader className="pb-2 px-6 pt-5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200/60 shadow-sm shadow-violet-200/40">
-              <Lightbulb className="w-4 h-4 text-violet-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-200/60 shadow-sm shadow-violet-200/40">
+                <Lightbulb className="w-4 h-4 text-violet-600" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">Scenario Builder</CardTitle>
+                <CardDescription className="text-[11px] text-slate-400 font-medium">
+                  Add hypothetical changes or let AI auto-generate scenarios
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-sm font-bold text-slate-800 tracking-tight">Scenario Builder</CardTitle>
-              <CardDescription className="text-[11px] text-slate-400 font-medium">
-                Add hypothetical changes and see their combined impact
-              </CardDescription>
-            </div>
+            <Button
+              onClick={generateAutoScenarios}
+              disabled={autoLoading}
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 rounded-lg font-medium border-violet-200/60 text-violet-700 hover:bg-violet-50"
+            >
+              {autoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              AI Auto-Generate
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="px-6 pb-5">
@@ -673,15 +747,30 @@ export default function WhatIfView({ data, startDate, endDate }: WhatIfViewProps
       )}
 
       {/* Empty state when no results */}
-      {!results && scenarios.length === 0 && (
+      {!results && scenarios.length === 0 && !autoLoading && (
         <div className="flex items-center justify-center h-48">
           <div className="text-center max-w-sm">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-50 to-blue-50 flex items-center justify-center mx-auto mb-4 shadow-sm">
               <ArrowRightLeft className="w-7 h-7 text-cyan-500/60" />
             </div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-1.5 tracking-tight">No Scenarios Yet</h3>
+            <h3 className="text-sm font-semibold text-slate-700 mb-1.5 tracking-tight">Generating AI Scenarios...</h3>
             <p className="text-xs text-slate-400 font-medium leading-relaxed">
-              Add hypothetical scenarios above to see how they would affect your cash flow forecast. Try adding a new receipt or removing an expense to start.
+              AI is analyzing your cash flow data to generate smart scenarios. Results will appear automatically. You can also add custom scenarios above or click "AI Auto-Generate" to refresh.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Loading state for auto-generate + auto-calculate */}
+      {!results && autoLoading && (
+        <div className="flex items-center justify-center h-48">
+          <div className="text-center max-w-sm">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50 flex items-center justify-center mx-auto mb-4 shadow-sm">
+              <Loader2 className="w-7 h-7 text-violet-500 animate-spin" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-1.5 tracking-tight">AI is Working...</h3>
+            <p className="text-xs text-slate-400 font-medium leading-relaxed">
+              Generating scenarios and calculating their impact on your cash flow forecast automatically.
             </p>
           </div>
         </div>

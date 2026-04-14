@@ -295,7 +295,7 @@ export default function Home() {
           <DashboardView data={dashboardData} onRefresh={fetchDashboard} />
         )}
         {activeTab === 'advisor' && (
-          <AdvisorView data={dashboardData} startDate={formatDateStr(startDate)} endDate={formatDateStr(endDate)} onRefresh={fetchDashboard} />
+          <AdvisorView startDate={formatDateStr(startDate)} endDate={formatDateStr(endDate)} onRefresh={fetchDashboard} />
         )}
         {activeTab === 'what-if' && (
           <WhatIfView data={dashboardData} startDate={formatDateStr(startDate)} endDate={formatDateStr(endDate)} />
