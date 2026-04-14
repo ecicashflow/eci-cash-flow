@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,6 +11,11 @@ export async function GET(req: NextRequest) {
     const type = sp.get('type') || 'all';
     const format = sp.get('format') || 'csv';
     const year = sp.get('year');
+
+    // ─── Template Export (same format as import) ───
+    if (format === 'template') {
+      return generateTemplateExport(req);
+    }
 
     // ─── XLSX Export (landscape) ───
     if (format === 'xlsx') {
@@ -444,4 +450,307 @@ function formatNum(n: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Math.round(n));
+}
+
+// ─── Template Export Generator (import-compatible matrix format) ───
+async function generateTemplateExport(req: NextRequest) {
+  const sp = req.nextUrl.searchParams;
+
+  // Parse date range params (support both formats)
+  const smParam = sp.get('startMonth');
+  const syParam = sp.get('startYear');
+  const emParam = sp.get('endMonth');
+  const eyParam = sp.get('endYear');
+  const startDateStr = sp.get('startDate');
+  const endDateStr = sp.get('endDate');
+
+  // Fetch settings
+  const settingsArr = await db.setting.findMany();
+  const settingsMap: Record<string, string> = {};
+  for (const s of settingsArr) settingsMap[s.key] = s.value;
+  const companyName = settingsMap.company_name || 'ECI';
+
+  // Fetch ALL data from the database
+  const bankAccounts = await db.bankAccount.findMany({ where: { active: true } });
+  const receipts = await db.receipt.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }] });
+  const expenses = await db.expense.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }] });
+
+  // Determine date range
+  let startMonth: number, startYear: number, endMonth: number, endYear: number;
+
+  if (smParam && syParam && emParam && eyParam) {
+    startMonth = parseInt(smParam);
+    startYear = parseInt(syParam);
+    endMonth = parseInt(emParam);
+    endYear = parseInt(eyParam);
+  } else if (startDateStr && endDateStr) {
+    const sd = new Date(startDateStr);
+    const ed = new Date(endDateStr);
+    startMonth = sd.getMonth() + 1;
+    startYear = sd.getFullYear();
+    endMonth = ed.getMonth() + 1;
+    endYear = ed.getFullYear();
+  } else {
+    // Auto-detect from data: find min/max month-year across receipts & expenses
+    const allMonths = new Set<string>();
+    for (const r of receipts) allMonths.add(`${r.year}-${String(r.month).padStart(2, '0')}`);
+    for (const e of expenses) allMonths.add(`${e.year}-${String(e.month).padStart(2, '0')}`);
+
+    if (allMonths.size > 0) {
+      const sorted = Array.from(allMonths).sort();
+      const [fy, fm] = sorted[0].split('-').map(Number);
+      const [ly, lm] = sorted[sorted.length - 1].split('-').map(Number);
+      startMonth = fm;
+      startYear = fy;
+      endMonth = lm;
+      endYear = ly;
+    } else {
+      // No data: default to current financial year
+      const now = new Date();
+      const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      startMonth = 4;
+      startYear = fyYear;
+      endMonth = 3;
+      endYear = fyYear + 1;
+    }
+  }
+
+  // Build month range
+  const monthRange: Array<{ month: number; year: number; label: string }> = [];
+  let m = startMonth, y = startYear;
+  let limit = 36;
+  while (limit-- > 0) {
+    monthRange.push({ month: m, year: y, label: MONTH_NAMES[m - 1] });
+    if (m === endMonth && y === endYear) break;
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  const numMonths = monthRange.length;
+
+  // Group receipts: clientProject -> "year-month" -> total amount
+  const receiptByClient = new Map<string, Map<string, number>>();
+  const receiptNotes = new Map<string, string>();
+  for (const r of receipts) {
+    if (!receiptByClient.has(r.clientProject)) receiptByClient.set(r.clientProject, new Map());
+    const key = `${r.year}-${String(r.month).padStart(2, '0')}`;
+    const existing = receiptByClient.get(r.clientProject)!.get(key) || 0;
+    receiptByClient.get(r.clientProject)!.set(key, existing + r.amount);
+    if (r.notes && !receiptNotes.has(r.clientProject)) {
+      receiptNotes.set(r.clientProject, r.notes);
+    }
+  }
+
+  // Group expenses: category -> "year-month" -> total amount
+  const expenseByCategory = new Map<string, Map<string, number>>();
+  const expenseNotes = new Map<string, string>();
+  for (const e of expenses) {
+    if (!expenseByCategory.has(e.category)) expenseByCategory.set(e.category, new Map());
+    const key = `${e.year}-${String(e.month).padStart(2, '0')}`;
+    const existing = expenseByCategory.get(e.category)!.get(key) || 0;
+    expenseByCategory.get(e.category)!.set(key, existing + e.amount);
+    if (e.notes && !expenseNotes.has(e.category)) {
+      expenseNotes.set(e.category, e.notes);
+    }
+  }
+
+  // Sort alphabetically
+  const receiptClients = Array.from(receiptByClient.keys()).sort((a, b) => a.localeCompare(b));
+  const expenseCategories = Array.from(expenseByCategory.keys()).sort((a, b) => a.localeCompare(b));
+
+  // Total bank balance
+  const totalBankBalance = bankAccounts.reduce((sum, a) => sum + a.currentBalance, 0);
+
+  // ─── Helpers ───
+  const colLetter = (idx: number): string => {
+    let s = '';
+    let n = idx;
+    while (n >= 0) {
+      s = String.fromCharCode(65 + (n % 26)) + s;
+      n = Math.floor(n / 26) - 1;
+    }
+    return s;
+  };
+
+  // Create a row with A, B, C, [numMonths], lastCol
+  const makeRow = (a = '', b = '', c = '', lastCol = ''): any[] => {
+    const row: any[] = [a, b, c];
+    for (let i = 0; i < numMonths; i++) row.push('');
+    row.push(lastCol);
+    return row;
+  };
+
+  // Create a section header row with month labels
+  const headerRow = (sectionName: string, lastColName: string): any[] => {
+    const row: any[] = ['', '', sectionName];
+    for (const mo of monthRange) row.push(mo.label);
+    row.push(lastColName);
+    return row;
+  };
+
+  // ─── Build the sheet array ───
+  const data: any[][] = [];
+
+  // Track Excel row numbers (1-based) for formula references
+  let openingBalanceExcelRow = 0;
+  let totalReceiptsExcelRow = 0;
+  let totalExpensesExcelRow = 0;
+
+  // Row 1 (Excel): Title
+  data.push([`${companyName} - Cash Flow Statement`]);
+
+  // Row 2 (Excel): Period string
+  const periodLabel = `${MONTH_FULL[startMonth - 1]}, ${startYear} - ${MONTH_FULL[endMonth - 1]}, ${endYear}`;
+  data.push([periodLabel]);
+
+  // Row 3 (Excel): Empty
+  data.push(['']);
+
+  // Row 4 (Excel): Bank Accounts header with month columns
+  data.push(headerRow('Bank Accounts', 'Total/Remarks'));
+
+  // Bank account rows: C = bank detail, last col = balance
+  for (const bank of bankAccounts) {
+    const parts: string[] = [bank.bankName];
+    if (bank.accountNumber) parts.push(`#${bank.accountNumber}`);
+    if (bank.accountName) parts.push(`(${bank.accountName})`);
+    const detail = parts.join(' ');
+    data.push(makeRow('', '', detail, Math.round(bank.currentBalance)));
+  }
+
+  // Empty row
+  data.push(['']);
+
+  // Opening Balance row (import stops at this)
+  openingBalanceExcelRow = data.length + 1; // 1-based Excel row
+  const obRow: any[] = ['', '', 'Opening Balance'];
+  for (let i = 0; i < numMonths; i++) {
+    obRow.push(i === 0 ? Math.round(totalBankBalance) : '');
+  }
+  obRow.push('');
+  data.push(obRow);
+
+  // Empty row
+  data.push(['']);
+
+  // ─── EXPECTED RECEIPTS section ───
+  data.push(headerRow('EXPECTED RECEIPTS', 'Remarks'));
+
+  const receiptDataStartExcelRow = data.length + 1; // 1-based
+
+  for (const client of receiptClients) {
+    const monthData = receiptByClient.get(client)!;
+    const row: any[] = ['', '', client];
+    for (const mo of monthRange) {
+      const key = `${mo.year}-${String(mo.month).padStart(2, '0')}`;
+      const amt = monthData.get(key) || 0;
+      row.push(amt > 0 ? Math.round(amt) : '');
+    }
+    row.push(receiptNotes.get(client) || '');
+    data.push(row);
+  }
+
+  const receiptDataEndExcelRow = data.length; // 1-based
+
+  // Total Expected Receipts row with SUM formulas
+  totalReceiptsExcelRow = data.length + 1; // 1-based
+  const totalRecRow: any[] = ['', '', 'Total Expected Receipts'];
+  for (let i = 0; i < numMonths; i++) {
+    const col = colLetter(3 + i); // D=3, E=4, ...
+    if (receiptClients.length > 0) {
+      totalRecRow.push({ t: 'n', f: `SUM(${col}${receiptDataStartExcelRow}:${col}${receiptDataEndExcelRow})` });
+    } else {
+      totalRecRow.push(0);
+    }
+  }
+  totalRecRow.push('');
+  data.push(totalRecRow);
+
+  // Empty rows
+  data.push(['']);
+  data.push(['']);
+
+  // ─── EXPECTED EXPENSES section ───
+  data.push(headerRow('EXPECTED EXPENSES', 'Remarks'));
+
+  const expenseDataStartExcelRow = data.length + 1; // 1-based
+
+  for (const cat of expenseCategories) {
+    const monthData = expenseByCategory.get(cat)!;
+    const row: any[] = ['', '', cat];
+    for (const mo of monthRange) {
+      const key = `${mo.year}-${String(mo.month).padStart(2, '0')}`;
+      const amt = monthData.get(key) || 0;
+      row.push(amt > 0 ? Math.round(amt) : '');
+    }
+    row.push(expenseNotes.get(cat) || '');
+    data.push(row);
+  }
+
+  const expenseDataEndExcelRow = data.length; // 1-based
+
+  // Total Expected Expenses row with SUM formulas
+  totalExpensesExcelRow = data.length + 1; // 1-based
+  const totalExpRow: any[] = ['', '', 'Total Expected Expenses'];
+  for (let i = 0; i < numMonths; i++) {
+    const col = colLetter(3 + i);
+    if (expenseCategories.length > 0) {
+      totalExpRow.push({ t: 'n', f: `SUM(${col}${expenseDataStartExcelRow}:${col}${expenseDataEndExcelRow})` });
+    } else {
+      totalExpRow.push(0);
+    }
+  }
+  totalExpRow.push('');
+  data.push(totalExpRow);
+
+  // Empty rows
+  data.push(['']);
+  data.push(['']);
+
+  // ─── FORECAST BANK BALANCE row ───
+  const forecastExcelRow = data.length + 1; // 1-based
+  const forecastRowData: any[] = ['', '', 'Forecast Bank Balance'];
+  for (let i = 0; i < numMonths; i++) {
+    const col = colLetter(3 + i);
+    const receiptRef = `${col}${totalReceiptsExcelRow}`;
+    const expenseRef = `${col}${totalExpensesExcelRow}`;
+    if (i === 0) {
+      // First month: Opening Balance + Receipts - Expenses
+      const openRef = `${col}${openingBalanceExcelRow}`;
+      forecastRowData.push({ t: 'n', f: `${openRef}+${receiptRef}-${expenseRef}` });
+    } else {
+      // Subsequent: previous forecast + this month receipts - expenses
+      const prevCol = colLetter(2 + i);
+      forecastRowData.push({ t: 'n', f: `${prevCol}${forecastExcelRow}+${receiptRef}-${expenseRef}` });
+    }
+  }
+  forecastRowData.push('');
+  data.push(forecastRowData);
+
+  // ─── Build workbook ───
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  // Column widths: A=4, B=4, C=50, month cols=14 each, last col=20
+  const colWidths = [
+    { wch: 4 },  // A
+    { wch: 4 },  // B
+    { wch: 50 }, // C
+  ];
+  for (let i = 0; i < numMonths; i++) colWidths.push({ wch: 14 });
+  colWidths.push({ wch: 20 }); // Remarks/Total column
+  ws['!cols'] = colWidths;
+
+  // Sheet name MUST be "Cash Flow" (the import looks for this)
+  XLSX.utils.book_append_sheet(wb, ws, 'Cash Flow');
+
+  // Generate buffer
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  const filenameLabel = `${MONTH_NAMES[startMonth - 1]}${startYear}-${MONTH_NAMES[endMonth - 1]}${endYear}`;
+  return new NextResponse(buf, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="Cash-Flow-Export-${filenameLabel}.xlsx"`,
+    },
+  });
 }

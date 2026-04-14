@@ -544,7 +544,24 @@ export default function SettingsView({ onRefresh }: { onRefresh: () => void }) {
                   >
                     <Download className="w-3.5 h-3.5" /> Download Template
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 border-blue-400 text-blue-700 hover:bg-blue-100 bg-blue-50"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = `/api/reports/export?format=template&startMonth=${templateStartMonth}&startYear=${templateStartYear}&endMonth=${templateEndMonth}&endYear=${templateEndYear}`;
+                      a.download = `Cash-Flow-Export-${MONTH_NAMES[templateStartMonth - 1]}${templateStartYear}-${MONTH_NAMES[templateEndMonth - 1]}${templateEndYear}.xlsx`;
+                      a.click();
+                      toast.success('Cash flow data exported in template format');
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export Data (Same Template)
+                  </Button>
                 </div>
+                <p className="text-[10px] text-blue-600 mt-1">
+                  Download your current data in the same Excel format used for import. You can edit it offline and re-import.
+                </p>
 
                 {/* Quick presets */}
                 <div className="flex flex-wrap gap-1.5">
